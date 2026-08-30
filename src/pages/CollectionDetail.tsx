@@ -1,17 +1,16 @@
 import React, { useState } from 'react';
-import { Bookmark, Collection, AppAction } from '../types';
+import { ApiBookmark, ApiCollection } from '../types/api';
 import BookmarkCard from '../components/BookmarkCard';
 import { ArrowLeftIcon, FolderIcon, EyeOffIcon } from '../icons';
 
 interface CollectionDetailProps {
-  bookmarks: Bookmark[];
-  collection: Collection | { id: 'inbox'; name: string; description: string };
-  allCollections: Collection[];
-  dispatch: React.Dispatch<AppAction>;
+  bookmarks: ApiBookmark[];
+  collection: ApiCollection | { id: 'inbox'; name: string; description: string };
+  allCollections: ApiCollection[];
   onBack: () => void;
 }
 
-export default function CollectionDetail({ bookmarks, collection, allCollections, dispatch, onBack }: CollectionDetailProps) {
+export default function CollectionDetail({ bookmarks, collection, allCollections, onBack }: CollectionDetailProps) {
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<'newest' | 'oldest'>('newest');
 
@@ -21,7 +20,7 @@ export default function CollectionDetail({ bookmarks, collection, allCollections
     .filter((b) =>
       !search ||
       b.tweet.text.toLowerCase().includes(search.toLowerCase()) ||
-      b.tweet.author.displayName.toLowerCase().includes(search.toLowerCase())
+      b.tweet.authorName.toLowerCase().includes(search.toLowerCase())
     )
     .sort((a, b) =>
       sort === 'newest'
@@ -31,7 +30,6 @@ export default function CollectionDetail({ bookmarks, collection, allCollections
 
   return (
     <div className="p-6 lg:p-8 max-w-3xl mx-auto">
-      {/* Back */}
       <button
         onClick={onBack}
         className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-6"
@@ -40,7 +38,6 @@ export default function CollectionDetail({ bookmarks, collection, allCollections
         Collections
       </button>
 
-      {/* Header */}
       <div className="mb-6">
         <div className="flex items-center gap-2.5 mb-1">
           <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center">
@@ -62,7 +59,6 @@ export default function CollectionDetail({ bookmarks, collection, allCollections
         </div>
       </div>
 
-      {/* Controls */}
       <div className="flex gap-2 mb-5">
         <input
           type="text"
@@ -81,7 +77,6 @@ export default function CollectionDetail({ bookmarks, collection, allCollections
         </select>
       </div>
 
-      {/* Bookmarks */}
       {filtered.length === 0 ? (
         <div className="text-center py-16">
           <FolderIcon size={24} className="text-muted-foreground mx-auto mb-3" />
@@ -92,7 +87,7 @@ export default function CollectionDetail({ bookmarks, collection, allCollections
       ) : (
         <div className="space-y-4">
           {filtered.map((b) => (
-            <BookmarkCard key={b.id} bookmark={b} collections={allCollections} dispatch={dispatch} />
+            <BookmarkCard key={b.id} bookmark={b} collections={allCollections} />
           ))}
         </div>
       )}

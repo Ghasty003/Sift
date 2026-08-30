@@ -1,25 +1,29 @@
 import React, { useState } from 'react';
-import { Bookmark, Collection, AppAction } from '../types';
+import { ApiBookmark, ApiCollection } from '../types/api';
 import BookmarkCard from '../components/BookmarkCard';
 import { EyeOffIcon, CheckCircleIcon } from '../icons';
+import { useToggleRead } from '../hooks/useBookmarks';
 
 interface UnreadProps {
-  bookmarks: Bookmark[];
-  collections: Collection[];
-  dispatch: React.Dispatch<AppAction>;
+  bookmarks: ApiBookmark[];
+  collections: ApiCollection[];
 }
 
-export default function Unread({ bookmarks, collections, dispatch }: UnreadProps) {
+export default function Unread({ bookmarks, collections }: UnreadProps) {
   const [search, setSearch] = useState('');
+  const toggleRead = useToggleRead();
 
   const filtered = bookmarks.filter((b) =>
     !search ||
     b.tweet.text.toLowerCase().includes(search.toLowerCase()) ||
-    b.tweet.author.displayName.toLowerCase().includes(search.toLowerCase())
+    b.tweet.authorName.toLowerCase().includes(search.toLowerCase())
   );
 
   function markAllRead() {
-    filtered.forEach((b) => dispatch({ type: 'TOGGLE_READ', id: b.id }));
+    // Fires one mutation per bookmark — the API has no bulk "mark all read"
+    // endpoint. Fine for realistic inbox sizes; revisit if this list ever
+    // needs to handle hundreds of items at once.
+    filtered.forEach((b) => toggleRead.mutate(b.id));
   }
 
   return (
@@ -71,7 +75,7 @@ export default function Unread({ bookmarks, collections, dispatch }: UnreadProps
       ) : (
         <div className="space-y-4">
           {filtered.map((b) => (
-            <BookmarkCard key={b.id} bookmark={b} collections={collections} dispatch={dispatch} />
+            <BookmarkCard key={b.id} bookmark={b} collections={collections} />
           ))}
         </div>
       )}

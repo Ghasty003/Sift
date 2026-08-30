@@ -1,21 +1,20 @@
 import React, { useState } from 'react';
-import { Bookmark, Collection, AppAction } from '../types';
+import { ApiBookmark, ApiCollection, ApiTag } from '../types/api';
 import BookmarkCard from '../components/BookmarkCard';
-import { BookmarkIcon, GridIcon, ListIcon, XIcon } from '../icons';
+import { BookmarkIcon, XIcon } from '../icons';
 
 interface AllBookmarksProps {
-  bookmarks: Bookmark[];
-  collections: Collection[];
-  allTags: string[];
-  dispatch: React.Dispatch<AppAction>;
+  bookmarks: ApiBookmark[];
+  collections: ApiCollection[];
+  allTags: ApiTag[];
 }
 
 type SortKey = 'newest-saved' | 'oldest-saved' | 'newest-tweet' | 'oldest-tweet';
 
-export default function AllBookmarks({ bookmarks, collections, allTags, dispatch }: AllBookmarksProps) {
+export default function AllBookmarks({ bookmarks, collections, allTags }: AllBookmarksProps) {
   const [search, setSearch] = useState('');
-  const [filterCollection, setFilterCollection] = useState('');
-  const [filterTag, setFilterTag] = useState('');
+  const [filterCollection, setFilterCollection] = useState(''); // '' = all, 'inbox' = no collection, else collection id
+  const [filterTag, setFilterTag] = useState(''); // tag id
   const [filterRead, setFilterRead] = useState<'all' | 'read' | 'unread'>('all');
   const [filterFavorite, setFilterFavorite] = useState(false);
   const [sort, setSort] = useState<SortKey>('newest-saved');
@@ -26,15 +25,16 @@ export default function AllBookmarks({ bookmarks, collections, allTags, dispatch
         const q = search.toLowerCase();
         if (
           !b.tweet.text.toLowerCase().includes(q) &&
-          !b.tweet.author.displayName.toLowerCase().includes(q) &&
-          !b.tweet.author.username.toLowerCase().includes(q) &&
-          !b.note.toLowerCase().includes(q) &&
-          !b.tags.some((t) => t.toLowerCase().includes(q))
+          !b.tweet.authorName.toLowerCase().includes(q) &&
+          !b.tweet.authorUsername.toLowerCase().includes(q) &&
+          !(b.note?.content.toLowerCase().includes(q) ?? false) &&
+          !b.tags.some((t) => t.name.toLowerCase().includes(q))
         )
           return false;
       }
-      if (filterCollection && b.collectionId !== filterCollection) return false;
-      if (filterTag && !b.tags.includes(filterTag)) return false;
+      if (filterCollection === 'inbox' && b.collection !== null) return false;
+      if (filterCollection && filterCollection !== 'inbox' && b.collection?.id !== filterCollection) return false;
+      if (filterTag && !b.tags.some((t) => t.id === filterTag)) return false;
       if (filterRead === 'read' && !b.isRead) return false;
       if (filterRead === 'unread' && b.isRead) return false;
       if (filterFavorite && !b.isFavorite) return false;
@@ -51,15 +51,14 @@ export default function AllBookmarks({ bookmarks, collections, allTags, dispatch
     });
 
   const activeFilters = [
-    filterCollection && collections.find((c) => c.id === filterCollection)?.name,
-    filterTag,
+    filterCollection === 'inbox' ? 'Inbox' : collections.find((c) => c.id === filterCollection)?.name,
+    filterTag ? `#${allTags.find((t) => t.id === filterTag)?.name ?? ''}` : undefined,
     filterRead !== 'all' && filterRead,
     filterFavorite && 'Favorites',
   ].filter(Boolean) as string[];
 
   return (
     <div className="p-6 lg:p-8 max-w-3xl mx-auto">
-      {/* Header */}
       <div className="mb-6">
         <div className="flex items-center gap-2 mb-1">
           <BookmarkIcon size={18} className="text-muted-foreground" />
@@ -71,7 +70,6 @@ export default function AllBookmarks({ bookmarks, collections, allTags, dispatch
         <p className="text-sm text-muted-foreground">Every bookmark, across all collections.</p>
       </div>
 
-      {/* Controls */}
       <div className="space-y-3 mb-6">
         <div className="flex gap-2">
           <input
@@ -113,7 +111,7 @@ export default function AllBookmarks({ bookmarks, collections, allTags, dispatch
           >
             <option value="">All tags</option>
             {allTags.map((t) => (
-              <option key={t} value={t}>{t}</option>
+              <option key={t.id} value={t.id}>#{t.name}</option>
             ))}
           </select>
 
@@ -154,7 +152,6 @@ export default function AllBookmarks({ bookmarks, collections, allTags, dispatch
         </div>
       </div>
 
-      {/* Results */}
       {filtered.length === 0 ? (
         <div className="text-center py-16">
           <BookmarkIcon size={24} className="text-muted-foreground mx-auto mb-3" />
@@ -164,7 +161,7 @@ export default function AllBookmarks({ bookmarks, collections, allTags, dispatch
       ) : (
         <div className="space-y-4">
           {filtered.map((b) => (
-            <BookmarkCard key={b.id} bookmark={b} collections={collections} dispatch={dispatch} />
+            <BookmarkCard key={b.id} bookmark={b} collections={collections} />
           ))}
         </div>
       )}

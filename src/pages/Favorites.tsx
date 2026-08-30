@@ -1,21 +1,20 @@
 import React, { useState } from 'react';
-import { Bookmark, Collection, AppAction } from '../types';
+import { ApiBookmark, ApiCollection } from '../types/api';
 import BookmarkCard from '../components/BookmarkCard';
 import { StarIcon } from '../icons';
 
 interface FavoritesProps {
-  bookmarks: Bookmark[];
-  collections: Collection[];
-  dispatch: React.Dispatch<AppAction>;
+  bookmarks: ApiBookmark[];
+  collections: ApiCollection[];
 }
 
-export default function Favorites({ bookmarks, collections, dispatch }: FavoritesProps) {
+export default function Favorites({ bookmarks, collections }: FavoritesProps) {
   const [search, setSearch] = useState('');
 
   const filtered = bookmarks.filter((b) =>
     !search ||
     b.tweet.text.toLowerCase().includes(search.toLowerCase()) ||
-    b.tweet.author.displayName.toLowerCase().includes(search.toLowerCase())
+    b.tweet.authorName.toLowerCase().includes(search.toLowerCase())
   );
 
   return (
@@ -56,7 +55,7 @@ export default function Favorites({ bookmarks, collections, dispatch }: Favorite
       ) : (
         <div className="space-y-4">
           {filtered.map((b) => (
-            <BookmarkCard key={b.id} bookmark={b} collections={collections} dispatch={dispatch} />
+            <BookmarkCard key={b.id} bookmark={b} collections={collections} />
           ))}
         </div>
       )}

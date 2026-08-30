@@ -1,15 +1,14 @@
 import React, { useState } from 'react';
-import { Bookmark, Collection, AppAction } from '../types';
+import { ApiBookmark, ApiCollection } from '../types/api';
 import BookmarkCard from '../components/BookmarkCard';
-import { InboxIcon, SortIcon } from '../icons';
+import { InboxIcon } from '../icons';
 
 interface InboxProps {
-  bookmarks: Bookmark[];
-  collections: Collection[];
-  dispatch: React.Dispatch<AppAction>;
+  bookmarks: ApiBookmark[];
+  collections: ApiCollection[];
 }
 
-export default function Inbox({ bookmarks, collections, dispatch }: InboxProps) {
+export default function Inbox({ bookmarks, collections }: InboxProps) {
   const [sort, setSort] = useState<'newest' | 'oldest'>('newest');
   const [search, setSearch] = useState('');
 
@@ -17,8 +16,8 @@ export default function Inbox({ bookmarks, collections, dispatch }: InboxProps) 
     .filter((b) =>
       !search ||
       b.tweet.text.toLowerCase().includes(search.toLowerCase()) ||
-      b.tweet.author.displayName.toLowerCase().includes(search.toLowerCase()) ||
-      b.tweet.author.username.toLowerCase().includes(search.toLowerCase())
+      b.tweet.authorName.toLowerCase().includes(search.toLowerCase()) ||
+      b.tweet.authorUsername.toLowerCase().includes(search.toLowerCase())
     )
     .sort((a, b) =>
       sort === 'newest'
@@ -28,7 +27,6 @@ export default function Inbox({ bookmarks, collections, dispatch }: InboxProps) 
 
   return (
     <div className="p-6 lg:p-8 max-w-3xl mx-auto">
-      {/* Header */}
       <div className="mb-6">
         <div className="flex items-center gap-2 mb-1">
           <InboxIcon size={18} className="text-muted-foreground" />
@@ -40,7 +38,6 @@ export default function Inbox({ bookmarks, collections, dispatch }: InboxProps) 
         <p className="text-sm text-muted-foreground">Bookmarks you haven&apos;t organized yet.</p>
       </div>
 
-      {/* Controls */}
       <div className="flex items-center gap-3 mb-5">
         <input
           type="text"
@@ -59,10 +56,7 @@ export default function Inbox({ bookmarks, collections, dispatch }: InboxProps) 
         </select>
       </div>
 
-      {/* List */}
-      {filtered.length === 0 && bookmarks.length === 0 && (
-        <EmptyInbox />
-      )}
+      {filtered.length === 0 && bookmarks.length === 0 && <EmptyInbox />}
 
       {filtered.length === 0 && bookmarks.length > 0 && (
         <div className="text-center py-16">
@@ -72,7 +66,7 @@ export default function Inbox({ bookmarks, collections, dispatch }: InboxProps) 
 
       <div className="space-y-4">
         {filtered.map((b) => (
-          <BookmarkCard key={b.id} bookmark={b} collections={collections} dispatch={dispatch} />
+          <BookmarkCard key={b.id} bookmark={b} collections={collections} />
         ))}
       </div>
     </div>

@@ -1,10 +1,7 @@
 import React, { useState } from "react";
+import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { EyeIcon, EyeOffIcon } from "../icons";
-
-interface LoginProps {
-  onLogin: () => void;
-  onGoSignup: () => void;
-}
+import { useLogin } from "../hooks/useAuth";
 
 function GoogleIcon() {
   return (
@@ -43,12 +40,15 @@ function XLogoIcon() {
   );
 }
 
-export default function Login({ onLogin, onGoSignup }: LoginProps) {
+export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const login = useLogin();
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -56,19 +56,24 @@ export default function Login({ onLogin, onGoSignup }: LoginProps) {
       setError("Please enter your email and password.");
       return;
     }
-    setLoading(true);
     setError("");
-    setTimeout(() => {
-      setLoading(false);
-      onLogin();
-    }, 800);
+
+    login.mutate(
+      { email, password },
+      {
+        onSuccess: () => {
+          const redirect = searchParams.get("redirect");
+          navigate(redirect ? decodeURIComponent(redirect) : "/dashboard");
+        },
+        onError: () => setError("Incorrect email or password."),
+      },
+    );
   }
 
   return (
     <div className="min-h-screen flex bg-background">
       {/* Left brand panel */}
-      <div className="hidden lg:flex flex-col w-[480px] flex-shrink-0 bg-[#0D4440] text-white p-12 relative overflow-hidden">
-        {/* Background texture */}
+      <div className="hidden lg:flex flex-col w-120 shrink-0 bg-[#0D4440] text-white p-12 relative overflow-hidden">
         <div className="absolute inset-0 opacity-5">
           <svg width="100%" height="100%">
             <pattern
@@ -88,7 +93,6 @@ export default function Login({ onLogin, onGoSignup }: LoginProps) {
           </svg>
         </div>
 
-        {/* Logo */}
         <div className="relative flex items-center gap-2.5 mb-16">
           <div className="w-8 h-8 rounded-lg bg-white/15 flex items-center justify-center">
             <svg
@@ -107,7 +111,6 @@ export default function Login({ onLogin, onGoSignup }: LoginProps) {
           <span className="text-lg font-bold tracking-tight">Sift</span>
         </div>
 
-        {/* Headline */}
         <div className="relative flex-1 flex flex-col justify-center">
           <h1 className="text-4xl font-bold leading-tight mb-4 text-white">
             Your X bookmarks,
@@ -119,7 +122,6 @@ export default function Login({ onLogin, onGoSignup }: LoginProps) {
             focused workspace for your saved knowledge.
           </p>
 
-          {/* Mini feature cards */}
           <div className="space-y-3">
             {[
               {
@@ -152,7 +154,6 @@ export default function Login({ onLogin, onGoSignup }: LoginProps) {
           </div>
         </div>
 
-        {/* Bottom quote */}
         <div className="relative mt-12">
           <p className="text-xs text-[#6EA8A4] italic">
             &ldquo;The right tweet at the right time — now you can actually find
@@ -164,7 +165,6 @@ export default function Login({ onLogin, onGoSignup }: LoginProps) {
       {/* Right form panel */}
       <div className="flex-1 flex items-center justify-center p-6 lg:p-12">
         <div className="w-full max-w-sm">
-          {/* Mobile logo */}
           <div className="flex items-center gap-2 mb-8 lg:hidden">
             <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center">
               <svg
@@ -190,25 +190,27 @@ export default function Login({ onLogin, onGoSignup }: LoginProps) {
             Sign in to your account to continue.
           </p>
 
-          {/* Social auth */}
           <div className="space-y-2.5 mb-6">
             <button
-              onClick={onLogin}
-              className="w-full flex items-center justify-center gap-2.5 px-4 py-2.5 bg-card border border-border rounded-lg text-sm font-medium text-foreground hover:bg-muted transition-colors"
+              type="button"
+              disabled
+              title="Coming soon"
+              className="w-full flex items-center justify-center gap-2.5 px-4 py-2.5 bg-card border border-border rounded-lg text-sm font-medium text-muted-foreground opacity-50 cursor-not-allowed"
             >
               <GoogleIcon />
               Continue with Google
             </button>
             <button
-              onClick={onLogin}
-              className="w-full flex items-center justify-center gap-2.5 px-4 py-2.5 bg-foreground text-background rounded-lg text-sm font-medium hover:opacity-85 transition-opacity"
+              type="button"
+              disabled
+              title="Coming soon"
+              className="w-full flex items-center justify-center gap-2.5 px-4 py-2.5 bg-foreground text-background rounded-lg text-sm font-medium opacity-50 cursor-not-allowed"
             >
               <XLogoIcon />
               Continue with X
             </button>
           </div>
 
-          {/* Divider */}
           <div className="flex items-center gap-3 mb-6">
             <div className="flex-1 h-px bg-border" />
             <span className="text-xs text-muted-foreground">
@@ -217,7 +219,6 @@ export default function Login({ onLogin, onGoSignup }: LoginProps) {
             <div className="flex-1 h-px bg-border" />
           </div>
 
-          {/* Email/password form */}
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
               <div className="px-3 py-2.5 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
@@ -276,10 +277,10 @@ export default function Login({ onLogin, onGoSignup }: LoginProps) {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={login.isPending}
               className="w-full py-2.5 bg-primary text-primary-foreground rounded-lg text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed mt-2"
             >
-              {loading ? (
+              {login.isPending ? (
                 <span className="flex items-center justify-center gap-2">
                   <svg
                     className="animate-spin w-4 h-4"
@@ -310,12 +311,12 @@ export default function Login({ onLogin, onGoSignup }: LoginProps) {
 
           <p className="text-center text-sm text-muted-foreground mt-6">
             Don&apos;t have an account?{" "}
-            <button
-              onClick={onGoSignup}
+            <Link
+              to="/signup"
               className="text-primary font-medium hover:opacity-70 transition-opacity"
             >
               Create one
-            </button>
+            </Link>
           </p>
         </div>
       </div>

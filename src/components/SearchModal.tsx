@@ -1,17 +1,20 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Bookmark, Collection, Page } from '../types';
-import { SearchIcon, XIcon, BookmarkIcon, FolderIcon, TagIcon } from '../icons';
-import { getAvatarColor, getInitials } from '../data';
+import React, { useState, useEffect, useRef } from "react";
+import { Page } from "../types";
+import { ApiBookmark, ApiCollection, ApiTag } from "../types/api";
+import { SearchIcon, XIcon, BookmarkIcon, FolderIcon, TagIcon } from "../icons";
 
 interface SearchModalProps {
-  bookmarks: Bookmark[];
-  collections: Collection[];
-  allTags: string[];
+  bookmarks: ApiBookmark[];
+  collections: ApiCollection[];
+  allTags: ApiTag[];
   onClose: () => void;
-  onNavigate: (page: Page, params?: { collectionId?: string; tag?: string }) => void;
+  onNavigate: (
+    page: Page,
+    params?: { collectionId?: string; tag?: string },
+  ) => void;
 }
 
-type ResultType = 'bookmark' | 'collection' | 'tag';
+type ResultType = "bookmark" | "collection" | "tag";
 
 interface Result {
   type: ResultType;
@@ -29,14 +32,22 @@ function highlight(text: string, query: string): React.ReactNode {
   return (
     <>
       {text.slice(0, idx)}
-      <mark className="bg-primary/20 text-primary rounded-sm">{text.slice(idx, idx + query.length)}</mark>
+      <mark className="bg-primary/20 text-primary rounded-sm">
+        {text.slice(idx, idx + query.length)}
+      </mark>
       {text.slice(idx + query.length)}
     </>
   );
 }
 
-export default function SearchModal({ bookmarks, collections, allTags, onClose, onNavigate }: SearchModalProps) {
-  const [query, setQuery] = useState('');
+export default function SearchModal({
+  bookmarks,
+  collections,
+  allTags,
+  onClose,
+  onNavigate,
+}: SearchModalProps) {
+  const [query, setQuery] = useState("");
   const [activeIdx, setActiveIdx] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -46,10 +57,10 @@ export default function SearchModal({ bookmarks, collections, allTags, onClose, 
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === "Escape") onClose();
     };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
   }, [onClose]);
 
   const q = query.trim().toLowerCase();
@@ -57,57 +68,55 @@ export default function SearchModal({ bookmarks, collections, allTags, onClose, 
   const results: Result[] = [];
 
   if (q) {
-    // Bookmark results
     bookmarks
       .filter(
         (b) =>
           b.tweet.text.toLowerCase().includes(q) ||
-          b.tweet.author.displayName.toLowerCase().includes(q) ||
-          b.tweet.author.username.toLowerCase().includes(q) ||
-          b.note.toLowerCase().includes(q) ||
-          b.tags.some((t) => t.toLowerCase().includes(q))
+          b.tweet.authorName.toLowerCase().includes(q) ||
+          b.tweet.authorUsername.toLowerCase().includes(q) ||
+          (b.note?.content.toLowerCase().includes(q) ?? false) ||
+          b.tags.some((t) => t.name.toLowerCase().includes(q)),
       )
       .slice(0, 8)
       .forEach((b) => {
         results.push({
-          type: 'bookmark',
+          type: "bookmark",
           id: b.id,
-          title: b.tweet.author.displayName,
-          subtitle: b.tweet.text.slice(0, 80) + (b.tweet.text.length > 80 ? '…' : ''),
-          page: 'all-bookmarks',
+          title: b.tweet.authorName,
+          subtitle:
+            b.tweet.text.slice(0, 80) + (b.tweet.text.length > 80 ? "…" : ""),
+          page: "all-bookmarks",
         });
       });
 
-    // Collection results
     collections
       .filter(
         (c) =>
           c.name.toLowerCase().includes(q) ||
-          c.description.toLowerCase().includes(q)
+          c.description.toLowerCase().includes(q),
       )
       .slice(0, 3)
       .forEach((c) => {
         results.push({
-          type: 'collection',
+          type: "collection",
           id: c.id,
           title: c.name,
           subtitle: c.description,
-          page: 'collection-detail',
+          page: "collection-detail",
           params: { collectionId: c.id },
         });
       });
 
-    // Tag results
     allTags
-      .filter((t) => t.toLowerCase().includes(q))
+      .filter((t) => t.name.toLowerCase().includes(q))
       .slice(0, 5)
       .forEach((t) => {
         results.push({
-          type: 'tag',
-          id: t,
-          title: t,
-          page: 'tag-detail',
-          params: { tag: t },
+          type: "tag",
+          id: t.id,
+          title: `#${t.name}`,
+          page: "tag-detail",
+          params: { tag: t.id },
         });
       });
   }
@@ -117,13 +126,13 @@ export default function SearchModal({ bookmarks, collections, allTags, onClose, 
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === 'ArrowDown') {
+    if (e.key === "ArrowDown") {
       e.preventDefault();
       setActiveIdx((i) => Math.min(i + 1, results.length - 1));
-    } else if (e.key === 'ArrowUp') {
+    } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setActiveIdx((i) => Math.max(i - 1, 0));
-    } else if (e.key === 'Enter' && results[activeIdx]) {
+    } else if (e.key === "Enter" && results[activeIdx]) {
       selectResult(results[activeIdx]);
     }
   }
@@ -143,38 +152,53 @@ export default function SearchModal({ bookmarks, collections, allTags, onClose, 
         className="bg-card rounded-xl border border-border shadow-2xl w-full max-w-xl mx-4 overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Input */}
         <div className="flex items-center gap-3 px-4 py-3.5 border-b border-border">
-          <SearchIcon size={16} className="text-muted-foreground flex-shrink-0" />
+          <SearchIcon size={16} className="text-muted-foreground shrink-0" />
           <input
             ref={inputRef}
             value={query}
-            onChange={(e) => { setQuery(e.target.value); setActiveIdx(0); }}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setActiveIdx(0);
+            }}
             onKeyDown={handleKeyDown}
             placeholder="Search bookmarks, collections, tags..."
             className="flex-1 text-sm bg-transparent outline-none text-foreground placeholder:text-muted-foreground"
           />
           {query && (
-            <button onClick={() => setQuery('')} className="text-muted-foreground hover:text-foreground transition-colors">
+            <button
+              onClick={() => setQuery("")}
+              className="text-muted-foreground hover:text-foreground transition-colors"
+            >
               <XIcon size={15} />
             </button>
           )}
-          <kbd className="text-xs text-muted-foreground border border-border rounded px-1.5 py-0.5 font-mono">Esc</kbd>
+          <kbd className="text-xs text-muted-foreground border border-border rounded px-1.5 py-0.5 font-mono">
+            Esc
+          </kbd>
         </div>
 
-        {/* Results */}
         <div className="max-h-80 overflow-y-auto">
           {q && results.length === 0 && (
             <div className="py-12 text-center">
-              <p className="text-sm text-muted-foreground">No results for &ldquo;{query}&rdquo;</p>
-              <p className="text-xs text-muted-foreground mt-1">Try a different search term</p>
+              <p className="text-sm text-muted-foreground">
+                No results for &ldquo;{query}&rdquo;
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Try a different search term
+              </p>
             </div>
           )}
 
           {!q && (
             <div className="py-12 text-center">
-              <SearchIcon size={24} className="text-muted-foreground mx-auto mb-3" />
-              <p className="text-sm text-muted-foreground">Search across all your bookmarks</p>
+              <SearchIcon
+                size={24}
+                className="text-muted-foreground mx-auto mb-3"
+              />
+              <p className="text-sm text-muted-foreground">
+                Search across all your bookmarks
+              </p>
             </div>
           )}
 
@@ -184,10 +208,12 @@ export default function SearchModal({ bookmarks, collections, allTags, onClose, 
               onClick={() => selectResult(result)}
               onMouseEnter={() => setActiveIdx(idx)}
               className={`w-full flex items-start gap-3 px-4 py-3 text-left transition-colors ${
-                idx === activeIdx ? 'bg-muted' : 'hover:bg-muted/50'
+                idx === activeIdx ? "bg-muted" : "hover:bg-muted/50"
               }`}
             >
-              <span className="text-muted-foreground mt-0.5 flex-shrink-0">{typeIcon[result.type]}</span>
+              <span className="text-muted-foreground mt-0.5 shrink-0">
+                {typeIcon[result.type]}
+              </span>
               <div className="min-w-0">
                 <p className="text-sm font-medium text-foreground truncate">
                   {highlight(result.title, query)}
@@ -198,23 +224,31 @@ export default function SearchModal({ bookmarks, collections, allTags, onClose, 
                   </p>
                 )}
               </div>
-              <span className="ml-auto text-xs text-muted-foreground flex-shrink-0 mt-0.5 capitalize">
+              <span className="ml-auto text-xs text-muted-foreground shrink-0 mt-0.5 capitalize">
                 {result.type}
               </span>
             </button>
           ))}
         </div>
 
-        {/* Footer */}
         <div className="flex items-center gap-4 px-4 py-2.5 border-t border-border bg-muted/30">
           <span className="text-xs text-muted-foreground flex items-center gap-1">
-            <kbd className="border border-border rounded px-1 py-0.5 font-mono bg-background">↑↓</kbd> navigate
+            <kbd className="border border-border rounded px-1 py-0.5 font-mono bg-background">
+              ↑↓
+            </kbd>{" "}
+            navigate
           </span>
           <span className="text-xs text-muted-foreground flex items-center gap-1">
-            <kbd className="border border-border rounded px-1 py-0.5 font-mono bg-background">↵</kbd> select
+            <kbd className="border border-border rounded px-1 py-0.5 font-mono bg-background">
+              ↵
+            </kbd>{" "}
+            select
           </span>
           <span className="text-xs text-muted-foreground flex items-center gap-1">
-            <kbd className="border border-border rounded px-1 py-0.5 font-mono bg-background">Esc</kbd> close
+            <kbd className="border border-border rounded px-1 py-0.5 font-mono bg-background">
+              Esc
+            </kbd>{" "}
+            close
           </span>
         </div>
       </div>

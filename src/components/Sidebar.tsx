@@ -1,5 +1,7 @@
 import React, { useState } from "react";
-import { NavState, Page, Bookmark, Collection, AppAction } from "../types";
+import { useLocation } from "react-router-dom";
+import { Page } from "../types";
+import { ApiBookmark, ApiCollection } from "../types/api";
 import {
   InboxIcon,
   BookmarkIcon,
@@ -8,34 +10,34 @@ import {
   FolderIcon,
   TagIcon,
   SettingsIcon,
-  UserIcon,
   PlusIcon,
   XIcon,
   ChevronDownIcon,
   ChevronRightIcon,
 } from "../icons";
 import { getAvatarColor, getInitials } from "../data";
-import { useLocation } from "react-router-dom";
-import { pageToPath } from "@/lib/legacyNav";
+import { pageToPath } from "../lib/legacyNav";
+import { useCreateCollection } from "../hooks/useCollections";
 
 interface SidebarProps {
   onNavigate: (
     page: Page,
     params?: { collectionId?: string; tag?: string },
   ) => void;
-  collections: Collection[];
-  bookmarks: Bookmark[];
+  collections: ApiCollection[];
+  bookmarks: ApiBookmark[];
   isOpen: boolean;
   onClose: () => void;
-  dispatch: React.Dispatch<AppAction>;
 }
 
 function CreateCollectionModal({
   onClose,
   onSave,
+  saving,
 }: {
   onClose: () => void;
   onSave: (name: string, description: string) => void;
+  saving: boolean;
 }) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -91,10 +93,10 @@ function CreateCollectionModal({
             onClick={() => {
               if (name.trim()) onSave(name.trim(), description.trim());
             }}
-            disabled={!name.trim()}
+            disabled={!name.trim() || saving}
             className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            Create
+            {saving ? "Creating…" : "Create"}
           </button>
         </div>
       </div>
@@ -108,13 +110,13 @@ export default function Sidebar({
   bookmarks,
   isOpen,
   onClose,
-  dispatch,
 }: SidebarProps) {
-  const location = useLocation();
   const [collectionsExpanded, setCollectionsExpanded] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const location = useLocation();
+  const createCollection = useCreateCollection();
 
-  const inboxCount = bookmarks.filter((b) => b.collectionId === "inbox").length;
+  const inboxCount = bookmarks.filter((b) => b.collection === null).length;
   const favoritesCount = bookmarks.filter((b) => b.isFavorite).length;
   const unreadCount = bookmarks.filter((b) => !b.isRead).length;
 
@@ -125,9 +127,7 @@ export default function Sidebar({
     badge?: number,
     params?: { collectionId?: string; tag?: string },
   ) {
-    const path = pageToPath(page, params);
-    const isActive = location.pathname === path;
-
+    const isActive = location.pathname === pageToPath(page, params);
     return (
       <button
         onClick={() => {
@@ -158,20 +158,10 @@ export default function Sidebar({
   }
 
   function handleCreateCollection(name: string, description: string) {
-    const id = name
-      .toLowerCase()
-      .replace(/\s+/g, "-")
-      .replace(/[^a-z0-9-]/g, "");
-    dispatch({
-      type: "CREATE_COLLECTION",
-      collection: {
-        id: `${id}-${Date.now()}`,
-        name,
-        description,
-        createdAt: new Date().toISOString(),
-      },
-    });
-    setShowCreateModal(false);
+    createCollection.mutate(
+      { name, description },
+      { onSuccess: () => setShowCreateModal(false) },
+    );
   }
 
   const sidebarContent = (
@@ -248,7 +238,7 @@ export default function Sidebar({
           <div className="mt-1 space-y-0.5">
             {collections.map((c) => {
               const count = bookmarks.filter(
-                (b) => b.collectionId === c.id,
+                (b) => b.collection?.id === c.id,
               ).length;
               const isActive = location.pathname === `/collections/${c.id}`;
               return (
@@ -282,7 +272,7 @@ export default function Sidebar({
         {navItem("Settings", <SettingsIcon size={15} />, "settings")}
       </div>
 
-      {/* User */}
+      {/* User — static placeholder; wire to a real /me endpoint once one exists */}
       <div className="mt-3 px-3">
         <button
           onClick={() => {
@@ -312,12 +302,10 @@ export default function Sidebar({
 
   return (
     <>
-      {/* Desktop sidebar */}
       <aside className="hidden lg:flex flex-col w-56 bg-card border-r border-border shrink-0 h-full">
         {sidebarContent}
       </aside>
 
-      {/* Mobile drawer */}
       <aside
         className={`fixed inset-y-0 left-0 z-50 flex flex-col w-64 bg-card border-r border-border shadow-xl transition-transform duration-200 lg:hidden ${
           isOpen ? "translate-x-0" : "-translate-x-full"
@@ -330,6 +318,7 @@ export default function Sidebar({
         <CreateCollectionModal
           onClose={() => setShowCreateModal(false)}
           onSave={handleCreateCollection}
+          saving={createCollection.isPending}
         />
       )}
     </>
