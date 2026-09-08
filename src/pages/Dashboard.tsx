@@ -33,7 +33,7 @@ function StatCard({
   return (
     <button
       onClick={onClick}
-      className="bg-card border border-border rounded-xl p-5 text-left hover:border-foreground/20 transition-colors group"
+      className="bg-card border border-border rounded-xl p-5 text-left hover:border-foreground/20 transition-colors group cursor-pointer"
     >
       <div className="flex items-center justify-between mb-3">
         <span className="text-muted-foreground">{icon}</span>
