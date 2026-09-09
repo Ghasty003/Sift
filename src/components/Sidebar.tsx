@@ -141,7 +141,7 @@ export default function Sidebar({
             : "text-muted-foreground hover:bg-muted hover:text-foreground"
         }`}
       >
-        <span className="flex-shrink-0">{icon}</span>
+        <span className="shrink-0">{icon}</span>
         <span className="flex-1 truncate">{label}</span>
         {badge !== undefined && badge > 0 && (
           <span
@@ -170,7 +170,7 @@ export default function Sidebar({
       {/* Logo */}
       <div className="flex items-center justify-between px-4 mb-6">
         <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center flex-shrink-0">
+          <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center shrink-0">
             <svg
               width="14"
               height="14"
@@ -284,7 +284,7 @@ export default function Sidebar({
           className="w-full flex items-center gap-2.5 p-2 rounded-lg hover:bg-muted transition-colors"
         >
           <div
-            className="w-7 h-7 rounded-full flex items-center justify-center text-xs text-white font-semibold flex-shrink-0"
+            className="w-7 h-7 rounded-full flex items-center justify-center text-xs text-white font-semibold shrink-0"
             style={{ backgroundColor: getAvatarColor("alexchen") }}
           >
             {getInitials("Alex Chen")}
@@ -304,7 +304,7 @@ export default function Sidebar({
 
   return (
     <>
-      <aside className="hidden lg:flex flex-col w-56 bg-card border-r border-border flex-shrink-0 h-full">
+      <aside className="hidden lg:flex flex-col w-56 bg-card border-r border-border shrink-0 h-full">
         {sidebarContent}
       </aside>
 
