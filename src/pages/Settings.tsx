@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { UserIcon, ChromeIcon, SmartphoneIcon, KeyIcon } from "../icons";
-import { getAvatarColor, getInitials } from "../data";
+import { getAvatarColor, getInitials, formatRelative } from "../data";
+import { useApiTokens, useRevokeApiToken } from "../hooks/useApiTokens";
 
 type Section = "account" | "extension" | "mobile";
 
@@ -160,6 +161,30 @@ function AccountSection() {
 }
 
 function ExtensionSection() {
+  const tokensQuery = useApiTokens();
+  const revoke = useRevokeApiToken();
+  const [confirming, setConfirming] = useState(false);
+
+  // Multiple EXTENSION tokens are possible (connected from more than one
+  // browser/profile) — this card only has room for one status, so we show
+  // whichever active one was used most recently.
+  const extensionToken = tokensQuery.data
+    ?.filter((t) => t.type === "EXTENSION" && t.revokedAt === null)
+    .sort((a, b) => {
+      const aTime = a.lastUsedAt ? new Date(a.lastUsedAt).getTime() : 0;
+      const bTime = b.lastUsedAt ? new Date(b.lastUsedAt).getTime() : 0;
+      return bTime - aTime;
+    })[0];
+
+  const isConnected = Boolean(extensionToken);
+
+  function handleRevoke() {
+    if (!extensionToken) return;
+    revoke.mutate(extensionToken.tokenId, {
+      onSettled: () => setConfirming(false),
+    });
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -180,32 +205,79 @@ function ExtensionSection() {
               Chrome Extension
             </span>
           </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-2 h-2 rounded-full bg-green-500" />
-            <span className="text-xs text-green-700 font-medium">
-              Connected
-            </span>
-          </div>
+
+          {tokensQuery.isLoading ? (
+            <span className="text-xs text-muted-foreground">Checking…</span>
+          ) : (
+            <div className="flex items-center gap-1.5">
+              <div
+                className={`w-2 h-2 rounded-full ${isConnected ? "bg-green-500" : "bg-muted-foreground/40"}`}
+              />
+              <span
+                className={`text-xs font-medium ${isConnected ? "text-green-700" : "text-muted-foreground"}`}
+              >
+                {isConnected ? "Connected" : "Not connected"}
+              </span>
+            </div>
+          )}
         </div>
-        <div className="space-y-2 text-sm">
-          <div className="flex justify-between text-muted-foreground">
-            <span>Last used</span>
-            <span className="text-foreground">2 minutes ago</span>
+
+        {tokensQuery.isError && (
+          <p className="text-sm text-red-600">
+            Couldn't load connection status. Please try refreshing.
+          </p>
+        )}
+
+        {!tokensQuery.isLoading && !tokensQuery.isError && (
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between text-muted-foreground">
+              <span>Last used</span>
+              <span className="text-foreground">
+                {extensionToken?.lastUsedAt
+                  ? formatRelative(extensionToken.lastUsedAt)
+                  : "—"}
+              </span>
+            </div>
+            {/* Browser left hardcoded for now — revisit once there's a way
+                to detect it. */}
+            <div className="flex justify-between text-muted-foreground">
+              <span>Browser</span>
+              <span className="text-foreground">Chrome 127</span>
+            </div>
           </div>
-          <div className="flex justify-between text-muted-foreground">
-            <span>Version</span>
-            <span className="font-mono text-foreground">1.4.2</span>
+        )}
+
+        {isConnected && (
+          <div className="mt-4 pt-4 border-t border-border">
+            {confirming ? (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">
+                  Revoke access?
+                </span>
+                <button
+                  onClick={handleRevoke}
+                  disabled={revoke.isPending}
+                  className="text-xs text-red-600 font-medium hover:opacity-70 px-2 py-1 rounded border border-red-200 bg-red-50 disabled:opacity-60"
+                >
+                  {revoke.isPending ? "…" : "Yes, revoke"}
+                </button>
+                <button
+                  onClick={() => setConfirming(false)}
+                  className="text-xs text-muted-foreground hover:text-foreground px-2 py-1"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setConfirming(true)}
+                className="text-sm text-red-600 hover:opacity-70 transition-opacity"
+              >
+                Revoke extension access
+              </button>
+            )}
           </div>
-          <div className="flex justify-between text-muted-foreground">
-            <span>Browser</span>
-            <span className="text-foreground">Chrome 127</span>
-          </div>
-        </div>
-        <div className="mt-4 pt-4 border-t border-border">
-          <button className="text-sm text-red-600 hover:opacity-70 transition-opacity">
-            Revoke extension access
-          </button>
-        </div>
+        )}
       </div>
 
       {/* Instructions */}
