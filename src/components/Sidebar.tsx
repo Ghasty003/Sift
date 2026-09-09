@@ -19,6 +19,7 @@ import {
 import { getAvatarColor, getInitials } from "../data";
 import { pageToPath } from "../lib/legacyNav";
 import { useCreateCollection } from "../hooks/useCollections";
+import { useCurrentUser } from "../hooks/useCurrentUser";
 
 interface SidebarProps {
   onNavigate: (
@@ -116,6 +117,7 @@ export default function Sidebar({
   const [showCreateModal, setShowCreateModal] = useState(false);
   const location = useLocation();
   const createCollection = useCreateCollection();
+  const { data: user } = useCurrentUser();
 
   const inboxCount = bookmarks.filter((b) => b.collection === null).length;
   const favoritesCount = bookmarks.filter((b) => b.isFavorite).length;
@@ -274,7 +276,7 @@ export default function Sidebar({
         {navItem("Settings", <SettingsIcon size={15} />, "settings")}
       </div>
 
-      {/* User — static placeholder; wire to a real /me endpoint once one exists */}
+      {/* User */}
       <div className="mt-3 px-3">
         <button
           onClick={() => {
@@ -285,16 +287,18 @@ export default function Sidebar({
         >
           <div
             className="w-7 h-7 rounded-full flex items-center justify-center text-xs text-white font-semibold shrink-0"
-            style={{ backgroundColor: getAvatarColor("alexchen") }}
+            style={{
+              backgroundColor: user ? getAvatarColor(user.email) : "#D4D4D8",
+            }}
           >
-            {getInitials("Alex Chen")}
+            {user ? getInitials(user.fullName) : ""}
           </div>
           <div className="text-left min-w-0">
             <p className="text-xs font-medium text-foreground truncate">
-              Alex Chen
+              {user?.fullName ?? "Loading…"}
             </p>
             <p className="text-xs text-muted-foreground truncate">
-              alex@example.com
+              {user?.email ?? ""}
             </p>
           </div>
         </button>

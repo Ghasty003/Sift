@@ -1,6 +1,9 @@
 import React from "react";
+import { useNavigate } from "react-router-dom";
 import { SearchIcon, MenuIcon, BellIcon } from "../icons";
 import { getAvatarColor, getInitials } from "../data";
+import { pageToPath } from "../lib/legacyNav";
+import { useCurrentUser } from "../hooks/useCurrentUser";
 
 interface TopBarProps {
   onSearchOpen: () => void;
@@ -8,6 +11,9 @@ interface TopBarProps {
 }
 
 export default function TopBar({ onSearchOpen, onMenuOpen }: TopBarProps) {
+  const navigate = useNavigate();
+  const { data: user } = useCurrentUser();
+
   return (
     <header className="flex items-center gap-3 px-5 py-3 bg-card border-b border-border shrink-0 h-14">
       {/* Mobile menu */}
@@ -40,11 +46,14 @@ export default function TopBar({ onSearchOpen, onMenuOpen }: TopBarProps) {
         </button>
 
         <button
+          onClick={() => navigate(pageToPath("settings"))}
           className="w-8 h-8 rounded-full flex items-center justify-center text-xs text-white font-semibold shrink-0 ml-1"
-          style={{ backgroundColor: getAvatarColor("alexchen") }}
-          title="Your profile"
+          style={{
+            backgroundColor: user ? getAvatarColor(user.email) : "#D4D4D8",
+          }}
+          title={user ? `${user.fullName} — Settings` : "Settings"}
         >
-          {getInitials("Alex Chen")}
+          {user ? getInitials(user.fullName) : ""}
         </button>
       </div>
     </header>

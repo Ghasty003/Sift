@@ -1,8 +1,3 @@
-// Types mirroring the API responses exactly, as given.
-// These are intentionally separate from the app's existing `types.ts` shapes
-// (Bookmark/Collection/AppAction) until we decide how to reconcile the two —
-// see the note in the integration summary about tags/note/collection shape drift.
-
 export interface ApiTweet {
   tweetId: string;
   url: string;
@@ -49,11 +44,20 @@ export interface AuthCredentials {
   password: string;
 }
 
-// ⚠️ ASSUMPTION — the spec said "an object containing the access token" without
-// naming the field. Built against `accessToken`; if the real API returns
-// `token` / `access_token` / etc., this is the one place to change.
+export interface RegisterCredentials extends AuthCredentials {
+  fullName: string;
+}
+
+export interface CurrentUser {
+  id: string;
+  email: string;
+  fullName: string;
+  createdAt: string;
+}
+
 export interface AuthResponse {
   accessToken: string;
+  user: CurrentUser;
 }
 
 export interface CreateCollectionPayload {
