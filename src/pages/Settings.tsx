@@ -1,9 +1,21 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { UserIcon, ChromeIcon, SmartphoneIcon, KeyIcon } from "../icons";
 import { getAvatarColor, getInitials, formatRelative } from "../data";
 import { useApiTokens, useRevokeApiToken } from "../hooks/useApiTokens";
+import {
+  useChangePassword,
+  useCurrentUser,
+  useDeleteAccount,
+  useUpdateProfile,
+} from "@/hooks/useCurrentUser";
 
 type Section = "account" | "extension" | "mobile";
+
+function getErrorMessage(error: unknown, fallback: string): string {
+  const message = (error as { response?: { data?: { message?: string } } })
+    ?.response?.data?.message;
+  return message ?? fallback;
+}
 
 function SectionNav({
   active,
@@ -47,14 +59,62 @@ function SectionNav({
 }
 
 function AccountSection() {
-  const [name, setName] = useState("Alex Chen");
-  const [email, setEmail] = useState("alex@example.com");
+  const { data: user } = useCurrentUser();
+  const updateProfile = useUpdateProfile();
+  const changePassword = useChangePassword();
+  const deleteAccount = useDeleteAccount();
+
+  const [fullName, setFullName] = useState(user?.fullName ?? "");
   const [saved, setSaved] = useState(false);
 
-  function handleSave() {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  // Keep the local input in sync once the real user loads/updates —
+  // this only overwrites local state when the source of truth changes,
+  // not on every render.
+  useEffect(() => {
+    if (user) setFullName(user.fullName);
+  }, [user?.fullName]);
+
+  function handleSaveProfile() {
+    updateProfile.mutate(fullName, {
+      onSuccess: () => {
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2000);
+      },
+    });
   }
+
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordSuccess, setPasswordSuccess] = useState(false);
+
+  const passwordMismatch =
+    confirmPassword.length > 0 && newPassword !== confirmPassword;
+
+  function handleChangePassword() {
+    if (
+      !currentPassword ||
+      !newPassword ||
+      !confirmPassword ||
+      passwordMismatch
+    )
+      return;
+
+    changePassword.mutate(
+      { currentPassword, newPassword },
+      {
+        onSuccess: () => {
+          setCurrentPassword("");
+          setNewPassword("");
+          setConfirmPassword("");
+          setPasswordSuccess(true);
+          setTimeout(() => setPasswordSuccess(false), 2000);
+        },
+      },
+    );
+  }
+
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   return (
     <div className="space-y-6">
@@ -71,13 +131,17 @@ function AccountSection() {
       <div className="flex items-center gap-4">
         <div
           className="w-14 h-14 rounded-full flex items-center justify-center text-lg text-white font-bold"
-          style={{ backgroundColor: getAvatarColor("alexchen") }}
+          style={{
+            backgroundColor: user ? getAvatarColor(user.email) : "#D4D4D8",
+          }}
         >
-          {getInitials("Alex Chen")}
+          {user ? getInitials(user.fullName) : ""}
         </div>
         <div>
-          <p className="text-sm font-medium text-foreground">{name}</p>
-          <p className="text-xs text-muted-foreground">{email}</p>
+          <p className="text-sm font-medium text-foreground">
+            {user?.fullName ?? "Loading…"}
+          </p>
+          <p className="text-xs text-muted-foreground">{user?.email ?? ""}</p>
         </div>
       </div>
 
@@ -87,8 +151,8 @@ function AccountSection() {
             Full name
           </label>
           <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
+            value={fullName}
+            onChange={(e) => setFullName(e.target.value)}
             className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring"
           />
         </div>
@@ -98,20 +162,33 @@ function AccountSection() {
           </label>
           <input
             type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+            value={user?.email ?? ""}
+            disabled
+            title="Email address can't be changed"
+            className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-muted text-muted-foreground cursor-not-allowed"
           />
         </div>
+
+        {updateProfile.isError && (
+          <p className="text-sm text-red-600">
+            {getErrorMessage(updateProfile.error, "Couldn't save changes.")}
+          </p>
+        )}
+
         <button
-          onClick={handleSave}
-          className={`px-4 py-2 text-sm rounded-lg font-medium transition-all ${
+          onClick={handleSaveProfile}
+          disabled={updateProfile.isPending || !fullName.trim()}
+          className={`px-4 py-2 text-sm rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
             saved
               ? "bg-primary/20 text-primary"
               : "bg-primary text-primary-foreground hover:opacity-90"
           }`}
         >
-          {saved ? "✓ Saved" : "Save changes"}
+          {updateProfile.isPending
+            ? "Saving…"
+            : saved
+              ? "✓ Saved"
+              : "Save changes"}
         </button>
       </div>
 
@@ -126,20 +203,50 @@ function AccountSection() {
           <input
             type="password"
             placeholder="Current password"
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
             className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
           />
           <input
             type="password"
             placeholder="New password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
             className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
           />
           <input
             type="password"
             placeholder="Confirm new password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
             className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
           />
-          <button className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 transition-opacity">
-            Update password
+          {passwordMismatch && (
+            <p className="text-sm text-red-600">Passwords don't match.</p>
+          )}
+          {changePassword.isError && (
+            <p className="text-sm text-red-600">
+              {getErrorMessage(
+                changePassword.error,
+                "Couldn't change password.",
+              )}
+            </p>
+          )}
+          {passwordSuccess && (
+            <p className="text-sm text-primary">✓ Password updated.</p>
+          )}
+          <button
+            onClick={handleChangePassword}
+            disabled={
+              changePassword.isPending ||
+              !currentPassword ||
+              !newPassword ||
+              !confirmPassword ||
+              passwordMismatch
+            }
+            className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {changePassword.isPending ? "Updating…" : "Update password"}
           </button>
         </div>
       </div>
@@ -152,9 +259,38 @@ function AccountSection() {
           Permanently delete your account and all your data. This cannot be
           undone.
         </p>
-        <button className="px-4 py-2 text-sm border border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition-colors">
-          Delete account
-        </button>
+
+        {confirmDelete ? (
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">Are you sure?</span>
+            <button
+              onClick={() => deleteAccount.mutate()}
+              disabled={deleteAccount.isPending}
+              className="px-4 py-2 text-sm text-red-600 font-medium border border-red-200 bg-red-50 rounded-lg hover:opacity-80 disabled:opacity-60"
+            >
+              {deleteAccount.isPending ? "Deleting…" : "Yes, delete my account"}
+            </button>
+            <button
+              onClick={() => setConfirmDelete(false)}
+              className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground"
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setConfirmDelete(true)}
+            className="px-4 py-2 text-sm border border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition-colors"
+          >
+            Delete account
+          </button>
+        )}
+
+        {deleteAccount.isError && (
+          <p className="text-sm text-red-600 mt-2">
+            {getErrorMessage(deleteAccount.error, "Couldn't delete account.")}
+          </p>
+        )}
       </div>
     </div>
   );
