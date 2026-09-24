@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Page } from "../types";
 import { ApiBookmark, ApiCollection } from "../types/api";
 import {
@@ -15,11 +15,13 @@ import {
   ChevronDownIcon,
   ChevronRightIcon,
   GridIcon,
+  LogOutIcon,
 } from "../icons";
 import { getAvatarColor, getInitials } from "../data";
 import { pageToPath } from "../lib/legacyNav";
 import { useCreateCollection } from "../hooks/useCollections";
 import { useCurrentUser } from "../hooks/useCurrentUser";
+import { useLogout } from "../hooks/useAuth";
 
 interface SidebarProps {
   onNavigate: (
@@ -115,9 +117,12 @@ export default function Sidebar({
 }: SidebarProps) {
   const [collectionsExpanded, setCollectionsExpanded] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [confirmLogout, setConfirmLogout] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
   const createCollection = useCreateCollection();
   const { data: user } = useCurrentUser();
+  const logout = useLogout();
 
   const inboxCount = bookmarks.filter((b) => b.collection === null).length;
   const favoritesCount = bookmarks.filter((b) => b.isFavorite).length;
@@ -165,6 +170,12 @@ export default function Sidebar({
       { name, description },
       { onSuccess: () => setShowCreateModal(false) },
     );
+  }
+
+  function handleLogout() {
+    logout.mutate(undefined, {
+      onSuccess: () => navigate("/login"),
+    });
   }
 
   const sidebarContent = (
@@ -277,7 +288,7 @@ export default function Sidebar({
       </div>
 
       {/* User */}
-      <div className="mt-3 px-3">
+      <div className="mt-3 px-3 space-y-1">
         <button
           onClick={() => {
             onNavigate("settings");
@@ -302,6 +313,35 @@ export default function Sidebar({
             </p>
           </div>
         </button>
+
+        {confirmLogout ? (
+          <div className="flex items-center gap-2 px-2 py-1">
+            <span className="text-xs text-muted-foreground flex-1">
+              Log out?
+            </span>
+            <button
+              onClick={handleLogout}
+              disabled={logout.isPending}
+              className="text-xs text-red-600 font-medium hover:opacity-70 px-2 py-1 rounded border border-red-200 bg-red-50 disabled:opacity-60"
+            >
+              {logout.isPending ? "…" : "Yes"}
+            </button>
+            <button
+              onClick={() => setConfirmLogout(false)}
+              className="text-xs text-muted-foreground hover:text-foreground px-1"
+            >
+              No
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setConfirmLogout(true)}
+            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-left text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+          >
+            <LogOutIcon size={15} />
+            <span>Log out</span>
+          </button>
+        )}
       </div>
     </div>
   );
