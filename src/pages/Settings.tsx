@@ -299,25 +299,21 @@ function AccountSection() {
 function ExtensionSection() {
   const tokensQuery = useApiTokens();
   const revoke = useRevokeApiToken();
-  const [confirming, setConfirming] = useState(false);
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
 
-  // Multiple EXTENSION tokens are possible (connected from more than one
-  // browser/profile) — this card only has room for one status, so we show
-  // whichever active one was used most recently.
-  const extensionToken = tokensQuery.data
-    ?.filter((t) => t.type === "EXTENSION" && t.revokedAt === null)
+  const extensionTokens = (tokensQuery.data ?? [])
+    .filter((t) => t.type === "EXTENSION" && t.revokedAt === null)
     .sort((a, b) => {
       const aTime = a.lastUsedAt ? new Date(a.lastUsedAt).getTime() : 0;
       const bTime = b.lastUsedAt ? new Date(b.lastUsedAt).getTime() : 0;
       return bTime - aTime;
-    })[0];
+    });
 
-  const isConnected = Boolean(extensionToken);
+  const isConnected = extensionTokens.length > 0;
 
-  function handleRevoke() {
-    if (!extensionToken) return;
-    revoke.mutate(extensionToken.tokenId, {
-      onSettled: () => setConfirming(false),
+  function handleRevoke(tokenId: string) {
+    revoke.mutate(tokenId, {
+      onSettled: () => setConfirmingId(null),
     });
   }
 
@@ -328,93 +324,103 @@ function ExtensionSection() {
           Chrome Extension
         </h2>
         <p className="text-sm text-muted-foreground">
-          Save X posts directly from your browser.
+          Save X posts directly from your browser. You can connect it on more
+          than one browser or device.
         </p>
       </div>
 
-      {/* Status card */}
-      <div className="bg-card border border-border rounded-xl p-5">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2.5">
-            <ChromeIcon size={18} className="text-muted-foreground" />
-            <span className="text-sm font-medium text-foreground">
-              Chrome Extension
-            </span>
-          </div>
+      {tokensQuery.isLoading && (
+        <p className="text-sm text-muted-foreground">Checking…</p>
+      )}
 
-          {tokensQuery.isLoading ? (
-            <span className="text-xs text-muted-foreground">Checking…</span>
-          ) : (
-            <div className="flex items-center gap-1.5">
-              <div
-                className={`w-2 h-2 rounded-full ${isConnected ? "bg-green-500" : "bg-muted-foreground/40"}`}
-              />
-              <span
-                className={`text-xs font-medium ${isConnected ? "text-green-700" : "text-muted-foreground"}`}
-              >
-                {isConnected ? "Connected" : "Not connected"}
-              </span>
-            </div>
-          )}
-        </div>
+      {tokensQuery.isError && (
+        <p className="text-sm text-red-600">
+          Couldn't load connection status. Please try refreshing.
+        </p>
+      )}
 
-        {tokensQuery.isError && (
-          <p className="text-sm text-red-600">
-            Couldn't load connection status. Please try refreshing.
+      {!tokensQuery.isLoading && !tokensQuery.isError && !isConnected && (
+        <div className="bg-card border border-border rounded-xl p-5 text-center">
+          <ChromeIcon
+            size={20}
+            className="text-muted-foreground mx-auto mb-2"
+          />
+          <p className="text-sm text-muted-foreground">
+            No browsers connected yet.
           </p>
-        )}
+        </div>
+      )}
 
-        {!tokensQuery.isLoading && !tokensQuery.isError && (
-          <div className="space-y-2 text-sm">
-            <div className="flex justify-between text-muted-foreground">
-              <span>Last used</span>
-              <span className="text-foreground">
-                {extensionToken?.lastUsedAt
-                  ? formatRelative(extensionToken.lastUsedAt)
-                  : "—"}
-              </span>
-            </div>
-            {/* Browser left hardcoded for now — revisit once there's a way
-                to detect it. */}
-            <div className="flex justify-between text-muted-foreground">
-              <span>Browser</span>
-              <span className="text-foreground">Chrome 127</span>
-            </div>
-          </div>
-        )}
-
-        {isConnected && (
-          <div className="mt-4 pt-4 border-t border-border">
-            {confirming ? (
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">
-                  Revoke access?
-                </span>
-                <button
-                  onClick={handleRevoke}
-                  disabled={revoke.isPending}
-                  className="text-xs text-red-600 font-medium hover:opacity-70 px-2 py-1 rounded border border-red-200 bg-red-50 disabled:opacity-60"
-                >
-                  {revoke.isPending ? "…" : "Yes, revoke"}
-                </button>
-                <button
-                  onClick={() => setConfirming(false)}
-                  className="text-xs text-muted-foreground hover:text-foreground px-2 py-1"
-                >
-                  Cancel
-                </button>
+      {!tokensQuery.isLoading && !tokensQuery.isError && isConnected && (
+        <div className="space-y-3">
+          {extensionTokens.map((token) => (
+            <div
+              key={token.tokenId}
+              className="bg-card border border-border rounded-xl p-5"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2.5">
+                  <ChromeIcon size={18} className="text-muted-foreground" />
+                  <span className="text-sm font-medium text-foreground">
+                    {token.name || "Chrome Extension"}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-full bg-green-500" />
+                  <span className="text-xs text-green-700 font-medium">
+                    Connected
+                  </span>
+                </div>
               </div>
-            ) : (
-              <button
-                onClick={() => setConfirming(true)}
-                className="text-sm text-red-600 hover:opacity-70 transition-opacity"
-              >
-                Revoke extension access
-              </button>
-            )}
-          </div>
-        )}
-      </div>
+
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Connected</span>
+                  <span className="text-foreground">
+                    {formatRelative(token.createdAt)}
+                  </span>
+                </div>
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Last active</span>
+                  <span className="text-foreground">
+                    {token.lastUsedAt ? formatRelative(token.lastUsedAt) : "—"}
+                  </span>
+                </div>
+              </div>
+
+              <div className="mt-4 pt-4 border-t border-border">
+                {confirmingId === token.tokenId ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">
+                      Revoke access?
+                    </span>
+                    <button
+                      onClick={() => handleRevoke(token.tokenId)}
+                      disabled={revoke.isPending}
+                      className="text-xs text-red-600 font-medium hover:opacity-70 px-2 py-1 rounded border border-red-200 bg-red-50 disabled:opacity-60"
+                    >
+                      {revoke.isPending ? "…" : "Yes, revoke"}
+                    </button>
+                    <button
+                      onClick={() => setConfirmingId(null)}
+                      className="text-xs text-muted-foreground hover:text-foreground px-2 py-1"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setConfirmingId(token.tokenId)}
+                    className="text-sm text-red-600 hover:opacity-70 transition-opacity"
+                  >
+                    Revoke access
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Instructions */}
       <div className="bg-secondary/60 rounded-xl p-5">
