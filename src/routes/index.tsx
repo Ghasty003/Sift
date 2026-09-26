@@ -25,23 +25,14 @@ import Unread from "../pages/Unread";
 import Settings from "../pages/Settings";
 import NotFound from "../pages/NotFound";
 
-import {
-  useBookmarks,
-  useInboxBookmarks,
-  useFavoriteBookmarks,
-  useUnreadBookmarks,
-  useCollectionBookmarks,
-} from "../hooks/useBookmarks";
 import { useCollections } from "../hooks/useCollections";
+import { useTags } from "../hooks/useTags";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const location = useLocation();
 
   if (!isAuthenticated) {
-    // Preserve where they were headed (e.g. /connect-extension) so Login can
-    // send them back after a successful sign-in instead of always landing
-    // on /dashboard.
     const redirect = encodeURIComponent(location.pathname + location.search);
     return <Navigate to={`/login?redirect=${redirect}`} replace />;
   }
@@ -50,74 +41,50 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 }
 
 function DashboardRoute() {
-  const bookmarksQuery = useBookmarks();
-  const collectionsQuery = useCollections();
   const navigate = useNavigate();
-
+  // Dashboard now fetches its own summary internally via useDashboardSummary —
+  // no props to gate here.
   return (
-    <QueryGate queries={[bookmarksQuery, collectionsQuery]}>
-      {() => (
-        <Dashboard
-          bookmarks={bookmarksQuery.data!}
-          collections={collectionsQuery.data!}
-          onNavigate={(page, params) => navigate(pageToPath(page, params))}
-        />
-      )}
-    </QueryGate>
+    <Dashboard
+      onNavigate={(page, params) => navigate(pageToPath(page, params))}
+    />
   );
 }
 
 function InboxRoute() {
-  const bookmarksQuery = useInboxBookmarks();
   const collectionsQuery = useCollections();
 
   return (
-    <QueryGate queries={[bookmarksQuery, collectionsQuery]}>
-      {() => (
-        <Inbox
-          bookmarks={bookmarksQuery.data!}
-          collections={collectionsQuery.data!}
-        />
-      )}
+    <QueryGate queries={[collectionsQuery]}>
+      {() => <Inbox collections={collectionsQuery.data!} />}
     </QueryGate>
   );
 }
 
 function AllBookmarksRoute() {
-  const bookmarksQuery = useBookmarks();
   const collectionsQuery = useCollections();
+  const tagsQuery = useTags();
 
   return (
-    <QueryGate queries={[bookmarksQuery, collectionsQuery]}>
-      {() => {
-        const bookmarks = bookmarksQuery.data!;
-        const allTags = Array.from(
-          new Map(
-            bookmarks.flatMap((b) => b.tags).map((t) => [t.id, t]),
-          ).values(),
-        );
-        return (
-          <AllBookmarks
-            bookmarks={bookmarks}
-            collections={collectionsQuery.data!}
-            allTags={allTags}
-          />
-        );
-      }}
+    <QueryGate queries={[collectionsQuery, tagsQuery]}>
+      {() => (
+        <AllBookmarks
+          collections={collectionsQuery.data!}
+          allTags={tagsQuery.data!}
+        />
+      )}
     </QueryGate>
   );
 }
 
 function CollectionsRoute() {
-  const bookmarksQuery = useBookmarks();
   const collectionsQuery = useCollections();
   const navigate = useNavigate();
 
   return (
-    <QueryGate queries={[bookmarksQuery, collectionsQuery]}>
+    <QueryGate queries={[collectionsQuery]}>
       {() => (
         <Collections
-          bookmarks={bookmarksQuery.data!}
           collections={collectionsQuery.data!}
           onSelectCollection={(id) => navigate(`/collections/${id}`)}
         />
@@ -132,12 +99,9 @@ function CollectionDetailRoute() {
   const isInbox = collectionId === "inbox";
 
   const collectionsQuery = useCollections();
-  const inboxQuery = useInboxBookmarks();
-  const namedQuery = useCollectionBookmarks(isInbox ? undefined : collectionId);
-  const bookmarksQuery = isInbox ? inboxQuery : namedQuery;
 
   return (
-    <QueryGate queries={[collectionsQuery, bookmarksQuery]}>
+    <QueryGate queries={[collectionsQuery]}>
       {() => {
         const collection = isInbox
           ? {
@@ -151,7 +115,6 @@ function CollectionDetailRoute() {
 
         return (
           <CollectionDetail
-            bookmarks={bookmarksQuery.data ?? []}
             collection={collection}
             allCollections={collectionsQuery.data!}
             onBack={() => navigate("/collections")}
@@ -163,14 +126,14 @@ function CollectionDetailRoute() {
 }
 
 function TagsRoute() {
-  const bookmarksQuery = useBookmarks();
+  const tagsQuery = useTags();
   const navigate = useNavigate();
 
   return (
-    <QueryGate queries={[bookmarksQuery]}>
+    <QueryGate queries={[tagsQuery]}>
       {() => (
         <Tags
-          bookmarks={bookmarksQuery.data!}
+          tags={tagsQuery.data!}
           onSelectTag={(tagId) =>
             navigate(`/tags/${encodeURIComponent(tagId)}`)
           }
@@ -182,25 +145,19 @@ function TagsRoute() {
 
 function TagDetailRoute() {
   const { tagId } = useParams();
-  const bookmarksQuery = useBookmarks();
+  const tagsQuery = useTags();
   const collectionsQuery = useCollections();
   const navigate = useNavigate();
 
   return (
-    <QueryGate queries={[bookmarksQuery, collectionsQuery]}>
+    <QueryGate queries={[tagsQuery, collectionsQuery]}>
       {() => {
-        const bookmarks = bookmarksQuery.data!;
-        const matching = bookmarks.filter((b) =>
-          b.tags.some((t) => t.id === tagId),
-        );
-        const tagName = matching[0]?.tags.find((t) => t.id === tagId)?.name;
-
-        if (!tagId || !tagName) return <Navigate to="/tags" replace />;
+        const tag = tagsQuery.data!.find((t) => t.id === tagId);
+        if (!tagId || !tag) return <Navigate to="/tags" replace />;
 
         return (
           <TagDetail
-            bookmarks={matching}
-            tag={{ id: tagId, name: tagName }}
+            tag={{ id: tag.id, name: tag.name }}
             collections={collectionsQuery.data!}
             onBack={() => navigate("/tags")}
           />
@@ -211,33 +168,21 @@ function TagDetailRoute() {
 }
 
 function FavoritesRoute() {
-  const bookmarksQuery = useFavoriteBookmarks();
   const collectionsQuery = useCollections();
 
   return (
-    <QueryGate queries={[bookmarksQuery, collectionsQuery]}>
-      {() => (
-        <Favorites
-          bookmarks={bookmarksQuery.data!}
-          collections={collectionsQuery.data!}
-        />
-      )}
+    <QueryGate queries={[collectionsQuery]}>
+      {() => <Favorites collections={collectionsQuery.data!} />}
     </QueryGate>
   );
 }
 
 function UnreadRoute() {
-  const bookmarksQuery = useUnreadBookmarks();
   const collectionsQuery = useCollections();
 
   return (
-    <QueryGate queries={[bookmarksQuery, collectionsQuery]}>
-      {() => (
-        <Unread
-          bookmarks={bookmarksQuery.data!}
-          collections={collectionsQuery.data!}
-        />
-      )}
+    <QueryGate queries={[collectionsQuery]}>
+      {() => <Unread collections={collectionsQuery.data!} />}
     </QueryGate>
   );
 }

@@ -1,29 +1,31 @@
-import React, { useState } from 'react';
-import { ApiBookmark, ApiCollection } from '../types/api';
-import BookmarkCard from '../components/BookmarkCard';
-import { InboxIcon } from '../icons';
+import { useState } from "react";
+import { ApiCollection } from "../types/api";
+import { InboxIcon } from "../icons";
+import { useInboxBookmarksList } from "../hooks/useBookmarks";
+import InfiniteBookmarkList from "../components/InfiniteBookmarkList";
 
 interface InboxProps {
-  bookmarks: ApiBookmark[];
   collections: ApiCollection[];
 }
 
-export default function Inbox({ bookmarks, collections }: InboxProps) {
-  const [sort, setSort] = useState<'newest' | 'oldest'>('newest');
-  const [search, setSearch] = useState('');
+export default function Inbox({ collections }: InboxProps) {
+  const [search, setSearch] = useState("");
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage } =
+    useInboxBookmarksList();
 
-  const filtered = bookmarks
-    .filter((b) =>
-      !search ||
-      b.tweet.text.toLowerCase().includes(search.toLowerCase()) ||
-      b.tweet.authorName.toLowerCase().includes(search.toLowerCase()) ||
-      b.tweet.authorUsername.toLowerCase().includes(search.toLowerCase())
-    )
-    .sort((a, b) =>
-      sort === 'newest'
-        ? new Date(b.savedAt).getTime() - new Date(a.savedAt).getTime()
-        : new Date(a.savedAt).getTime() - new Date(b.savedAt).getTime()
-    );
+  // Search stays client-side here, over whatever pages have loaded — the
+  // inbox is typically small, and moving this specific filter server-side
+  // wasn't in scope. If it ever needs to search the full inbox rather than
+  // loaded pages, fold `search` into useInboxBookmarksList's filters instead.
+  const allBookmarks = data?.pages.flatMap((p) => p.items) ?? [];
+  const filtered = search
+    ? allBookmarks.filter(
+        (b) =>
+          b.tweet.text.toLowerCase().includes(search.toLowerCase()) ||
+          b.tweet.authorName.toLowerCase().includes(search.toLowerCase()) ||
+          b.tweet.authorUsername.toLowerCase().includes(search.toLowerCase()),
+      )
+    : null;
 
   return (
     <div className="p-6 lg:p-8 max-w-3xl mx-auto">
@@ -31,11 +33,10 @@ export default function Inbox({ bookmarks, collections }: InboxProps) {
         <div className="flex items-center gap-2 mb-1">
           <InboxIcon size={18} className="text-muted-foreground" />
           <h1 className="text-2xl font-bold text-foreground">Inbox</h1>
-          <span className="text-sm text-muted-foreground bg-muted px-2 py-0.5 rounded-full ml-1">
-            {bookmarks.length}
-          </span>
         </div>
-        <p className="text-sm text-muted-foreground">Bookmarks you haven&apos;t organized yet.</p>
+        <p className="text-sm text-muted-foreground">
+          Bookmarks you haven&apos;t organized yet.
+        </p>
       </div>
 
       <div className="flex items-center gap-3 mb-5">
@@ -46,29 +47,33 @@ export default function Inbox({ bookmarks, collections }: InboxProps) {
           placeholder="Filter inbox..."
           className="flex-1 px-3 py-2 text-sm border border-border rounded-lg bg-card focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
         />
-        <select
-          value={sort}
-          onChange={(e) => setSort(e.target.value as 'newest' | 'oldest')}
-          className="px-3 py-2 text-sm border border-border rounded-lg bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-        >
-          <option value="newest">Newest first</option>
-          <option value="oldest">Oldest first</option>
-        </select>
       </div>
 
-      {filtered.length === 0 && bookmarks.length === 0 && <EmptyInbox />}
-
-      {filtered.length === 0 && bookmarks.length > 0 && (
+      {filtered !== null && filtered.length === 0 ? (
         <div className="text-center py-16">
-          <p className="text-sm text-muted-foreground">No results for &ldquo;{search}&rdquo;</p>
+          <p className="text-sm text-muted-foreground">
+            No results for &ldquo;{search}&rdquo;
+          </p>
         </div>
+      ) : (
+        <InfiniteBookmarkList
+          data={
+            filtered !== null
+              ? {
+                  pages: [
+                    { items: filtered, nextCursor: null, hasMore: false },
+                  ],
+                  pageParams: [undefined],
+                }
+              : data
+          }
+          collections={collections}
+          hasNextPage={filtered === null && hasNextPage}
+          isFetchingNextPage={isFetchingNextPage}
+          fetchNextPage={fetchNextPage}
+          emptyState={<EmptyInbox />}
+        />
       )}
-
-      <div className="space-y-4">
-        {filtered.map((b) => (
-          <BookmarkCard key={b.id} bookmark={b} collections={collections} />
-        ))}
-      </div>
     </div>
   );
 }
@@ -79,7 +84,9 @@ function EmptyInbox() {
       <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center mx-auto mb-4">
         <InboxIcon size={22} className="text-muted-foreground" />
       </div>
-      <h3 className="text-sm font-semibold text-foreground mb-1">Your Inbox is empty</h3>
+      <h3 className="text-sm font-semibold text-foreground mb-1">
+        Your Inbox is empty
+      </h3>
       <p className="text-sm text-muted-foreground max-w-xs mx-auto leading-relaxed">
         Save an X post using the browser extension or mobile Shortcut.
       </p>

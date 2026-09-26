@@ -1,89 +1,107 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import {
   addBookmarkToCollection,
   addTagToBookmark,
+  BookmarkFilters,
   deleteBookmark,
-  fetchBookmarks,
-  fetchBookmarksByCollection,
-  fetchFavoriteBookmarks,
-  fetchInboxBookmarks,
-  fetchUnreadBookmarks,
+  fetchBookmarksPage,
   removeTagFromBookmark,
   toggleBookmarkFavorite,
   toggleBookmarkRead,
   upsertBookmarkNote,
-} from '../api/bookmarks';
-import { queryKeys } from '../lib/queryKeys';
+} from "../api/bookmarks";
 
-export function useBookmarks() {
-  return useQuery({ queryKey: queryKeys.bookmarks.all, queryFn: fetchBookmarks });
-}
-
-export function useInboxBookmarks() {
-  return useQuery({ queryKey: queryKeys.bookmarks.inbox, queryFn: fetchInboxBookmarks });
-}
-
-export function useFavoriteBookmarks() {
-  return useQuery({ queryKey: queryKeys.bookmarks.favorites, queryFn: fetchFavoriteBookmarks });
-}
-
-export function useUnreadBookmarks() {
-  return useQuery({ queryKey: queryKeys.bookmarks.unread, queryFn: fetchUnreadBookmarks });
-}
-
-export function useCollectionBookmarks(collectionId: string | undefined) {
-  return useQuery({
-    queryKey: queryKeys.bookmarks.byCollection(collectionId ?? ''),
-    queryFn: () => fetchBookmarksByCollection(collectionId as string),
-    enabled: Boolean(collectionId),
+function useBookmarkList(filters: BookmarkFilters, enabled = true) {
+  return useInfiniteQuery({
+    queryKey: ["bookmarks", "list", filters],
+    queryFn: ({ pageParam }) =>
+      fetchBookmarksPage({
+        ...filters,
+        cursor: pageParam as string | undefined,
+      }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) =>
+      lastPage.hasMore ? (lastPage.nextCursor ?? undefined) : undefined,
+    enabled,
   });
 }
 
-// Invalidates every bookmark list, since we don't know from the mutation
-// alone which lists (all / inbox / favorites / unread / by-collection) a
-// given bookmark currently appears in.
+export function useAllBookmarksList(
+  filters: Omit<BookmarkFilters, "collectionId"> & { collectionId?: string },
+) {
+  return useBookmarkList(filters);
+}
+
+export function useInboxBookmarksList() {
+  return useBookmarkList({ collectionId: "inbox" });
+}
+
+export function useFavoriteBookmarksList() {
+  return useBookmarkList({ favoriteOnly: true });
+}
+
+export function useUnreadBookmarksList() {
+  return useBookmarkList({ read: false });
+}
+
+export function useCollectionBookmarksList(collectionId: string | undefined) {
+  return useBookmarkList({ collectionId }, Boolean(collectionId));
+}
+
 function useInvalidateAllBookmarkLists() {
   const queryClient = useQueryClient();
-  return () => queryClient.invalidateQueries({ queryKey: ['bookmarks'] });
+  return () => queryClient.invalidateQueries({ queryKey: ["bookmarks"] });
 }
 
 export function useAddBookmarkToCollection() {
   const invalidate = useInvalidateAllBookmarkLists();
-
   return useMutation({
-    mutationFn: ({ bookmarkId, collectionId }: { bookmarkId: string; collectionId: string }) =>
-      addBookmarkToCollection(bookmarkId, collectionId),
+    mutationFn: ({
+      bookmarkId,
+      collectionId,
+    }: {
+      bookmarkId: string;
+      collectionId: string;
+    }) => addBookmarkToCollection(bookmarkId, collectionId),
     onSuccess: invalidate,
   });
 }
 
 export function useAddTagToBookmark() {
   const invalidate = useInvalidateAllBookmarkLists();
-
   return useMutation({
-    mutationFn: ({ bookmarkId, tagId }: { bookmarkId: string; tagId: string }) =>
-      addTagToBookmark(bookmarkId, tagId),
+    mutationFn: ({
+      bookmarkId,
+      tagId,
+    }: {
+      bookmarkId: string;
+      tagId: string;
+    }) => addTagToBookmark(bookmarkId, tagId),
     onSuccess: invalidate,
   });
 }
 
 export function useUpsertBookmarkNote() {
   const invalidate = useInvalidateAllBookmarkLists();
-
   return useMutation({
-    mutationFn: ({ bookmarkId, content }: { bookmarkId: string; content: string }) =>
-      upsertBookmarkNote(bookmarkId, content),
+    mutationFn: ({
+      bookmarkId,
+      content,
+    }: {
+      bookmarkId: string;
+      content: string;
+    }) => upsertBookmarkNote(bookmarkId, content),
     onSuccess: invalidate,
   });
 }
 
-// Favorite/read status affects which of the favorites/unread lists a
-// bookmark appears in, so a broad invalidate is correct here, not just belt-
-// and-suspenders. Could be swapped for a targeted setQueryData using the
-// full bookmark the server returns, if this ever needs to feel snappier.
 export function useToggleFavorite() {
   const invalidate = useInvalidateAllBookmarkLists();
-
   return useMutation({
     mutationFn: (bookmarkId: string) => toggleBookmarkFavorite(bookmarkId),
     onSuccess: invalidate,
@@ -92,7 +110,6 @@ export function useToggleFavorite() {
 
 export function useToggleRead() {
   const invalidate = useInvalidateAllBookmarkLists();
-
   return useMutation({
     mutationFn: (bookmarkId: string) => toggleBookmarkRead(bookmarkId),
     onSuccess: invalidate,
@@ -101,7 +118,6 @@ export function useToggleRead() {
 
 export function useDeleteBookmark() {
   const invalidate = useInvalidateAllBookmarkLists();
-
   return useMutation({
     mutationFn: (bookmarkId: string) => deleteBookmark(bookmarkId),
     onSuccess: invalidate,
@@ -110,10 +126,18 @@ export function useDeleteBookmark() {
 
 export function useRemoveTagFromBookmark() {
   const invalidate = useInvalidateAllBookmarkLists();
-
   return useMutation({
-    mutationFn: ({ bookmarkId, tagId }: { bookmarkId: string; tagId: string }) =>
-      removeTagFromBookmark(bookmarkId, tagId),
+    mutationFn: ({
+      bookmarkId,
+      tagId,
+    }: {
+      bookmarkId: string;
+      tagId: string;
+    }) => removeTagFromBookmark(bookmarkId, tagId),
     onSuccess: invalidate,
   });
+}
+
+export function useTagBookmarksList(tagId: string | undefined) {
+  return useBookmarkList({ tagId }, Boolean(tagId));
 }

@@ -1,21 +1,27 @@
-import React, { useState } from 'react';
-import { ApiBookmark, ApiCollection } from '../types/api';
-import BookmarkCard from '../components/BookmarkCard';
-import { StarIcon } from '../icons';
+import { useState } from "react";
+import { ApiCollection } from "../types/api";
+import { StarIcon } from "../icons";
+import { useFavoriteBookmarksList } from "../hooks/useBookmarks";
+import InfiniteBookmarkList from "../components/InfiniteBookmarkList";
 
 interface FavoritesProps {
-  bookmarks: ApiBookmark[];
   collections: ApiCollection[];
 }
 
-export default function Favorites({ bookmarks, collections }: FavoritesProps) {
-  const [search, setSearch] = useState('');
+export default function Favorites({ collections }: FavoritesProps) {
+  const [search, setSearch] = useState("");
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage } =
+    useFavoriteBookmarksList();
 
-  const filtered = bookmarks.filter((b) =>
-    !search ||
-    b.tweet.text.toLowerCase().includes(search.toLowerCase()) ||
-    b.tweet.authorName.toLowerCase().includes(search.toLowerCase())
-  );
+  // Client-side search over loaded pages only — same tradeoff as Inbox.tsx.
+  const allBookmarks = data?.pages.flatMap((p) => p.items) ?? [];
+  const filtered = search
+    ? allBookmarks.filter(
+        (b) =>
+          b.tweet.text.toLowerCase().includes(search.toLowerCase()) ||
+          b.tweet.authorName.toLowerCase().includes(search.toLowerCase()),
+      )
+    : null;
 
   return (
     <div className="p-6 lg:p-8 max-w-3xl mx-auto">
@@ -23,11 +29,10 @@ export default function Favorites({ bookmarks, collections }: FavoritesProps) {
         <div className="flex items-center gap-2 mb-1">
           <StarIcon size={18} className="text-muted-foreground" filled />
           <h1 className="text-2xl font-bold text-foreground">Favorites</h1>
-          <span className="text-sm text-muted-foreground bg-muted px-2 py-0.5 rounded-full ml-1">
-            {bookmarks.length}
-          </span>
         </div>
-        <p className="text-sm text-muted-foreground">Bookmarks you want to find quickly.</p>
+        <p className="text-sm text-muted-foreground">
+          Bookmarks you want to find quickly.
+        </p>
       </div>
 
       <div className="mb-5">
@@ -40,24 +45,48 @@ export default function Favorites({ bookmarks, collections }: FavoritesProps) {
         />
       </div>
 
-      {filtered.length === 0 ? (
+      {filtered !== null && filtered.length === 0 ? (
         <div className="text-center py-16">
           <div className="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center mx-auto mb-4">
             <StarIcon size={22} className="text-amber-400" filled />
           </div>
           <h3 className="text-sm font-semibold text-foreground mb-1">
-            {search ? 'No results' : 'No favorites yet'}
+            No results
           </h3>
           <p className="text-sm text-muted-foreground max-w-xs mx-auto">
-            {search ? 'Try a different search.' : 'Star a bookmark to save it here for quick access.'}
+            Try a different search.
           </p>
         </div>
       ) : (
-        <div className="space-y-4">
-          {filtered.map((b) => (
-            <BookmarkCard key={b.id} bookmark={b} collections={collections} />
-          ))}
-        </div>
+        <InfiniteBookmarkList
+          data={
+            filtered !== null
+              ? {
+                  pages: [
+                    { items: filtered, nextCursor: null, hasMore: false },
+                  ],
+                  pageParams: [undefined],
+                }
+              : data
+          }
+          collections={collections}
+          hasNextPage={filtered === null && hasNextPage}
+          isFetchingNextPage={isFetchingNextPage}
+          fetchNextPage={fetchNextPage}
+          emptyState={
+            <div className="text-center py-16">
+              <div className="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center mx-auto mb-4">
+                <StarIcon size={22} className="text-amber-400" filled />
+              </div>
+              <h3 className="text-sm font-semibold text-foreground mb-1">
+                No favorites yet
+              </h3>
+              <p className="text-sm text-muted-foreground max-w-xs mx-auto">
+                Star a bookmark to save it here for quick access.
+              </p>
+            </div>
+          }
+        />
       )}
     </div>
   );

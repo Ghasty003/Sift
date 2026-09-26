@@ -1,6 +1,5 @@
 import React from "react";
 import { Page } from "../types";
-import { ApiBookmark, ApiCollection } from "../types/api";
 import {
   BookmarkIcon,
   StarIcon,
@@ -9,10 +8,10 @@ import {
   TagIcon,
 } from "../icons";
 import { formatRelative, getAvatarColor, getInitials } from "../data";
+import { useDashboardSummary } from "../hooks/useDashboard";
+import { ApiBookmark } from "../types/api";
 
 interface DashboardProps {
-  bookmarks: ApiBookmark[];
-  collections: ApiCollection[];
   onNavigate: (
     page: Page,
     params?: { collectionId?: string; tag?: string },
@@ -88,215 +87,6 @@ function MiniBookmarkCard({ bookmark }: { bookmark: ApiBookmark }) {
   );
 }
 
-export default function Dashboard({
-  bookmarks,
-  collections,
-  onNavigate,
-}: DashboardProps) {
-  const inboxCount = bookmarks.filter((b) => b.collection === null).length;
-  const favoritesCount = bookmarks.filter((b) => b.isFavorite).length;
-  const unreadCount = bookmarks.filter((b) => !b.isRead).length;
-
-  const recentBookmarks = [...bookmarks]
-    .sort(
-      (a, b) => new Date(b.savedAt).getTime() - new Date(a.savedAt).getTime(),
-    )
-    .slice(0, 6);
-
-  // Tags have no dedicated "with counts" endpoint — derive from bookmarks,
-  // deduped and counted by tag id (not name, in case of future renames).
-  const tagCounts = new Map<
-    string,
-    { id: string; name: string; count: number }
-  >();
-  for (const b of bookmarks) {
-    for (const tag of b.tags) {
-      const existing = tagCounts.get(tag.id);
-      tagCounts.set(tag.id, {
-        id: tag.id,
-        name: tag.name,
-        count: (existing?.count ?? 0) + 1,
-      });
-    }
-  }
-  const popularTags = Array.from(tagCounts.values())
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 10);
-
-  const recentCollections = collections.slice(0, 5).map((c) => ({
-    collection: c,
-    count: bookmarks.filter((b) => b.collection?.id === c.id).length,
-    unread: bookmarks.filter((b) => b.collection?.id === c.id && !b.isRead)
-      .length,
-  }));
-
-  return (
-    <div className="p-6 lg:p-8 max-w-6xl mx-auto">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-foreground">Overview</h1>
-        <p className="text-muted-foreground mt-1 text-sm">
-          Your saved knowledge at a glance.
-        </p>
-      </div>
-
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-8">
-        <StatCard
-          label="Total bookmarks"
-          value={bookmarks.length}
-          icon={<BookmarkIcon size={16} />}
-          onClick={() => onNavigate("all-bookmarks")}
-        />
-        <StatCard
-          label="Unread"
-          value={unreadCount}
-          icon={<EyeOffIcon size={16} />}
-          onClick={() => onNavigate("unread")}
-        />
-        <StatCard
-          label="Favorites"
-          value={favoritesCount}
-          icon={<StarIcon size={16} />}
-          onClick={() => onNavigate("favorites")}
-        />
-        <StatCard
-          label="Collections"
-          value={collections.length}
-          icon={<FolderIcon size={16} />}
-          onClick={() => onNavigate("collections")}
-        />
-        <StatCard
-          label="Tags"
-          value={tagCounts.size}
-          icon={<TagIcon size={16} />}
-          onClick={() => onNavigate("tags")}
-        />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-foreground">
-              Recently Saved
-            </h2>
-            <button
-              onClick={() => onNavigate("all-bookmarks")}
-              className="text-xs text-primary hover:opacity-70 transition-opacity font-medium"
-            >
-              View all
-            </button>
-          </div>
-          <div className="bg-card border border-border rounded-xl px-5">
-            {recentBookmarks.map((b) => (
-              <MiniBookmarkCard key={b.id} bookmark={b} />
-            ))}
-          </div>
-        </div>
-
-        <div className="space-y-5">
-          <div>
-            <h2 className="text-sm font-semibold text-foreground mb-3">
-              Quick Access
-            </h2>
-            <div className="space-y-2">
-              <QuickLink
-                label="Inbox"
-                badge={inboxCount}
-                onClick={() => onNavigate("inbox")}
-                icon={<span className="text-primary">📥</span>}
-              />
-              <QuickLink
-                label="Favorites"
-                badge={favoritesCount}
-                onClick={() => onNavigate("favorites")}
-                icon={<span className="text-amber-500">⭐</span>}
-              />
-              <QuickLink
-                label="Unread"
-                badge={unreadCount}
-                onClick={() => onNavigate("unread")}
-                icon={<span className="text-muted-foreground">👁</span>}
-              />
-            </div>
-          </div>
-
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold text-foreground">
-                Collections
-              </h2>
-              <button
-                onClick={() => onNavigate("collections")}
-                className="text-xs text-primary hover:opacity-70 transition-opacity"
-              >
-                Manage
-              </button>
-            </div>
-            <div className="bg-card border border-border rounded-xl overflow-hidden">
-              {recentCollections.map(({ collection, count, unread }) => (
-                <button
-                  key={collection.id}
-                  onClick={() =>
-                    onNavigate("collection-detail", {
-                      collectionId: collection.id,
-                    })
-                  }
-                  className="w-full flex items-center justify-between px-4 py-3 border-b border-border last:border-0 hover:bg-muted/50 transition-colors text-left"
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <FolderIcon
-                      size={13}
-                      className="text-muted-foreground shrink-0"
-                    />
-                    <span className="text-sm text-foreground truncate">
-                      {collection.name}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    {unread > 0 && (
-                      <span className="text-xs text-primary font-medium">
-                        {unread} new
-                      </span>
-                    )}
-                    <span className="text-xs text-muted-foreground">
-                      {count}
-                    </span>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold text-foreground">
-                Popular Tags
-              </h2>
-              <button
-                onClick={() => onNavigate("tags")}
-                className="text-xs text-primary hover:opacity-70 transition-opacity"
-              >
-                View all
-              </button>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {popularTags.map((tag) => (
-                <button
-                  key={tag.id}
-                  onClick={() => onNavigate("tag-detail", { tag: tag.id })}
-                  className="flex items-center gap-1.5 px-2.5 py-1 bg-card border border-border rounded-full text-xs font-mono text-muted-foreground hover:text-primary hover:border-primary/40 transition-colors"
-                >
-                  #{tag.name}
-                  <span className="text-muted-foreground/60">{tag.count}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function QuickLink({
   label,
   badge,
@@ -321,5 +111,187 @@ function QuickLink({
         {badge}
       </span>
     </button>
+  );
+}
+
+export default function Dashboard({ onNavigate }: DashboardProps) {
+  const { data, isLoading, isError } = useDashboardSummary();
+
+  if (isLoading) {
+    return <div className="p-8 text-sm text-muted-foreground">Loading…</div>;
+  }
+
+  if (isError || !data) {
+    return (
+      <div className="p-8 text-sm text-red-600">
+        Couldn&apos;t load your dashboard. Please try refreshing.
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-6 lg:p-8 max-w-6xl mx-auto">
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-foreground">Overview</h1>
+        <p className="text-muted-foreground mt-1 text-sm">
+          Your saved knowledge at a glance.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-8">
+        <StatCard
+          label="Total bookmarks"
+          value={data.totalBookmarks}
+          icon={<BookmarkIcon size={16} />}
+          onClick={() => onNavigate("all-bookmarks")}
+        />
+        <StatCard
+          label="Unread"
+          value={data.unreadCount}
+          icon={<EyeOffIcon size={16} />}
+          onClick={() => onNavigate("unread")}
+        />
+        <StatCard
+          label="Favorites"
+          value={data.favoriteCount}
+          icon={<StarIcon size={16} />}
+          onClick={() => onNavigate("favorites")}
+        />
+        <StatCard
+          label="Collections"
+          value={data.collectionCount}
+          icon={<FolderIcon size={16} />}
+          onClick={() => onNavigate("collections")}
+        />
+        <StatCard
+          label="Tags"
+          value={data.tagCount}
+          icon={<TagIcon size={16} />}
+          onClick={() => onNavigate("tags")}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-semibold text-foreground">
+              Recently Saved
+            </h2>
+            <button
+              onClick={() => onNavigate("all-bookmarks")}
+              className="text-xs text-primary hover:opacity-70 transition-opacity font-medium"
+            >
+              View all
+            </button>
+          </div>
+          <div className="bg-card border border-border rounded-xl px-5">
+            {data.recentBookmarks.map((b) => (
+              <MiniBookmarkCard key={b.id} bookmark={b} />
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-5">
+          <div>
+            <h2 className="text-sm font-semibold text-foreground mb-3">
+              Quick Access
+            </h2>
+            <div className="space-y-2">
+              <QuickLink
+                label="Inbox"
+                badge={data.inboxCount}
+                onClick={() => onNavigate("inbox")}
+                icon={<span className="text-primary">📥</span>}
+              />
+              <QuickLink
+                label="Favorites"
+                badge={data.favoriteCount}
+                onClick={() => onNavigate("favorites")}
+                icon={<span className="text-amber-500">⭐</span>}
+              />
+              <QuickLink
+                label="Unread"
+                badge={data.unreadCount}
+                onClick={() => onNavigate("unread")}
+                icon={<span className="text-muted-foreground">👁</span>}
+              />
+            </div>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-semibold text-foreground">
+                Collections
+              </h2>
+              <button
+                onClick={() => onNavigate("collections")}
+                className="text-xs text-primary hover:opacity-70 transition-opacity"
+              >
+                Manage
+              </button>
+            </div>
+            <div className="bg-card border border-border rounded-xl overflow-hidden">
+              {data.recentCollections.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() =>
+                    onNavigate("collection-detail", { collectionId: c.id })
+                  }
+                  className="w-full flex items-center justify-between px-4 py-3 border-b border-border last:border-0 hover:bg-muted/50 transition-colors text-left"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <FolderIcon
+                      size={13}
+                      className="text-muted-foreground shrink-0"
+                    />
+                    <span className="text-sm text-foreground truncate">
+                      {c.name}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {c.unreadCount > 0 && (
+                      <span className="text-xs text-primary font-medium">
+                        {c.unreadCount} new
+                      </span>
+                    )}
+                    <span className="text-xs text-muted-foreground">
+                      {c.bookmarkCount}
+                    </span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-semibold text-foreground">
+                Popular Tags
+              </h2>
+              <button
+                onClick={() => onNavigate("tags")}
+                className="text-xs text-primary hover:opacity-70 transition-opacity"
+              >
+                View all
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {data.popularTags.map((tag) => (
+                <button
+                  key={tag.id}
+                  onClick={() => onNavigate("tag-detail", { tag: tag.id })}
+                  className="flex items-center gap-1.5 px-2.5 py-1 bg-card border border-border rounded-full text-xs font-mono text-muted-foreground hover:text-primary hover:border-primary/40 transition-colors"
+                >
+                  #{tag.name}
+                  <span className="text-muted-foreground/60">
+                    {tag.bookmarkCount}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

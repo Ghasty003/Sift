@@ -10,6 +10,7 @@ export interface ApiTweet {
 export interface ApiTag {
   id: string;
   name: string;
+  bookmarkCount: number;
 }
 
 export interface ApiCollection {
@@ -18,6 +19,8 @@ export interface ApiCollection {
   description: string;
   createdAt: string;
   updatedAt: string;
+  bookmarkCount: number;
+  unreadCount: number;
 }
 
 export interface ApiNote {

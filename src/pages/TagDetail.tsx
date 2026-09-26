@@ -1,16 +1,22 @@
-import React from 'react';
-import { ApiBookmark, ApiCollection } from '../types/api';
-import BookmarkCard from '../components/BookmarkCard';
-import { ArrowLeftIcon, TagIcon } from '../icons';
+import { ApiCollection } from "../types/api";
+import { ArrowLeftIcon, TagIcon } from "../icons";
+import { useTagBookmarksList } from "../hooks/useBookmarks";
+import InfiniteBookmarkList from "../components/InfiniteBookmarkList";
 
 interface TagDetailProps {
-  bookmarks: ApiBookmark[];
   tag: { id: string; name: string };
   collections: ApiCollection[];
   onBack: () => void;
 }
 
-export default function TagDetail({ bookmarks, tag, collections, onBack }: TagDetailProps) {
+export default function TagDetail({
+  tag,
+  collections,
+  onBack,
+}: TagDetailProps) {
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage } =
+    useTagBookmarksList(tag.id);
+
   return (
     <div className="p-6 lg:p-8 max-w-3xl mx-auto">
       <button
@@ -24,22 +30,26 @@ export default function TagDetail({ bookmarks, tag, collections, onBack }: TagDe
       <div className="mb-6">
         <div className="flex items-center gap-2 mb-1">
           <TagIcon size={18} className="text-muted-foreground" />
-          <h1 className="text-2xl font-bold text-foreground font-mono">#{tag.name}</h1>
+          <h1 className="text-2xl font-bold text-foreground font-mono">
+            #{tag.name}
+          </h1>
         </div>
-        <p className="text-sm text-muted-foreground">{bookmarks.length} bookmark{bookmarks.length !== 1 ? 's' : ''}</p>
       </div>
 
-      {bookmarks.length === 0 ? (
-        <div className="text-center py-16">
-          <p className="text-sm text-muted-foreground">No bookmarks with this tag.</p>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {bookmarks.map((b) => (
-            <BookmarkCard key={b.id} bookmark={b} collections={collections} />
-          ))}
-        </div>
-      )}
+      <InfiniteBookmarkList
+        data={data}
+        collections={collections}
+        hasNextPage={hasNextPage}
+        isFetchingNextPage={isFetchingNextPage}
+        fetchNextPage={fetchNextPage}
+        emptyState={
+          <div className="text-center py-16">
+            <p className="text-sm text-muted-foreground">
+              No bookmarks with this tag.
+            </p>
+          </div>
+        }
+      />
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Page } from "../types";
-import { ApiBookmark, ApiCollection } from "../types/api";
+import { ApiCollection } from "../types/api";
 import {
   InboxIcon,
   BookmarkIcon,
@@ -22,6 +22,7 @@ import { pageToPath } from "../lib/legacyNav";
 import { useCreateCollection } from "../hooks/useCollections";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { useLogout } from "../hooks/useAuth";
+import { useDashboardSummary } from "../hooks/useDashboard";
 
 interface SidebarProps {
   onNavigate: (
@@ -29,7 +30,6 @@ interface SidebarProps {
     params?: { collectionId?: string; tag?: string },
   ) => void;
   collections: ApiCollection[];
-  bookmarks: ApiBookmark[];
   isOpen: boolean;
   onClose: () => void;
 }
@@ -111,7 +111,6 @@ function CreateCollectionModal({
 export default function Sidebar({
   onNavigate,
   collections,
-  bookmarks,
   isOpen,
   onClose,
 }: SidebarProps) {
@@ -123,10 +122,11 @@ export default function Sidebar({
   const createCollection = useCreateCollection();
   const { data: user } = useCurrentUser();
   const logout = useLogout();
+  const { data: summary } = useDashboardSummary();
 
-  const inboxCount = bookmarks.filter((b) => b.collection === null).length;
-  const favoritesCount = bookmarks.filter((b) => b.isFavorite).length;
-  const unreadCount = bookmarks.filter((b) => !b.isRead).length;
+  const inboxCount = summary?.inboxCount ?? 0;
+  const favoritesCount = summary?.favoriteCount ?? 0;
+  const unreadCount = summary?.unreadCount ?? 0;
 
   function navItem(
     label: string,
@@ -252,9 +252,6 @@ export default function Sidebar({
         {collectionsExpanded && (
           <div className="mt-1 space-y-0.5">
             {collections.map((c) => {
-              const count = bookmarks.filter(
-                (b) => b.collection?.id === c.id,
-              ).length;
               const isActive = location.pathname === `/collections/${c.id}`;
               return (
                 <button
@@ -271,7 +268,9 @@ export default function Sidebar({
                 >
                   <FolderIcon size={14} />
                   <span className="flex-1 truncate">{c.name}</span>
-                  <span className="text-xs text-muted-foreground">{count}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {c.bookmarkCount}
+                  </span>
                 </button>
               );
             })}
