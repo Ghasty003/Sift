@@ -14,7 +14,7 @@ export default function TagDetail({
   collections,
   onBack,
 }: TagDetailProps) {
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage } =
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
     useTagBookmarksList(tag.id);
 
   return (
@@ -42,6 +42,7 @@ export default function TagDetail({
         hasNextPage={hasNextPage}
         isFetchingNextPage={isFetchingNextPage}
         fetchNextPage={fetchNextPage}
+        isLoading={isLoading}
         emptyState={
           <div className="text-center py-16">
             <p className="text-sm text-muted-foreground">

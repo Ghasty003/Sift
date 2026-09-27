@@ -10,6 +10,7 @@ import {
   BookmarkFilters,
   deleteBookmark,
   fetchBookmarksPage,
+  markAllBookmarksRead,
   removeTagFromBookmark,
   toggleBookmarkFavorite,
   toggleBookmarkRead,
@@ -140,4 +141,15 @@ export function useRemoveTagFromBookmark() {
 
 export function useTagBookmarksList(tagId: string | undefined) {
   return useBookmarkList({ tagId }, Boolean(tagId));
+}
+
+export function useMarkAllRead() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => markAllBookmarksRead(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["bookmarks"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+  });
 }

@@ -3,6 +3,7 @@ import { ApiCollection } from "../types/api";
 import { InboxIcon } from "../icons";
 import { useInboxBookmarksList } from "../hooks/useBookmarks";
 import InfiniteBookmarkList from "../components/InfiniteBookmarkList";
+import SiftLoader from "../components/SiftLoader";
 
 interface InboxProps {
   collections: ApiCollection[];
@@ -10,13 +11,9 @@ interface InboxProps {
 
 export default function Inbox({ collections }: InboxProps) {
   const [search, setSearch] = useState("");
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage } =
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
     useInboxBookmarksList();
 
-  // Search stays client-side here, over whatever pages have loaded — the
-  // inbox is typically small, and moving this specific filter server-side
-  // wasn't in scope. If it ever needs to search the full inbox rather than
-  // loaded pages, fold `search` into useInboxBookmarksList's filters instead.
   const allBookmarks = data?.pages.flatMap((p) => p.items) ?? [];
   const filtered = search
     ? allBookmarks.filter(
@@ -49,7 +46,9 @@ export default function Inbox({ collections }: InboxProps) {
         />
       </div>
 
-      {filtered !== null && filtered.length === 0 ? (
+      {isLoading ? (
+        <SiftLoader label="Loading your inbox…" />
+      ) : filtered !== null && filtered.length === 0 ? (
         <div className="text-center py-16">
           <p className="text-sm text-muted-foreground">
             No results for &ldquo;{search}&rdquo;
@@ -70,6 +69,7 @@ export default function Inbox({ collections }: InboxProps) {
           collections={collections}
           hasNextPage={filtered === null && hasNextPage}
           isFetchingNextPage={isFetchingNextPage}
+          isLoading={false}
           fetchNextPage={fetchNextPage}
           emptyState={<EmptyInbox />}
         />

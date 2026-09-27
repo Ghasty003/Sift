@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { ApiCollection } from "../types/api";
 import { EyeOffIcon, CheckCircleIcon } from "../icons";
-import { useToggleRead, useUnreadBookmarksList } from "../hooks/useBookmarks";
+import { useMarkAllRead, useUnreadBookmarksList } from "../hooks/useBookmarks";
 import InfiniteBookmarkList from "../components/InfiniteBookmarkList";
+import SiftLoader from "../components/SiftLoader";
 
 interface UnreadProps {
   collections: ApiCollection[];
@@ -10,8 +11,8 @@ interface UnreadProps {
 
 export default function Unread({ collections }: UnreadProps) {
   const [search, setSearch] = useState("");
-  const toggleRead = useToggleRead();
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage } =
+  const markAllRead = useMarkAllRead();
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
     useUnreadBookmarksList();
 
   const allBookmarks = data?.pages.flatMap((p) => p.items) ?? [];
@@ -22,16 +23,6 @@ export default function Unread({ collections }: UnreadProps) {
           b.tweet.authorName.toLowerCase().includes(search.toLowerCase()),
       )
     : null;
-
-  function markAllRead() {
-    // Only marks whatever's currently loaded (and matches the active
-    // search, if any) — with infinite scroll there's no guaranteed access
-    // to every unread bookmark at once without loading every page first.
-    // A true "mark all read" would need a dedicated bulk backend endpoint;
-    // flagging rather than silently limiting scope further.
-    const target = filtered ?? allBookmarks;
-    target.forEach((b) => toggleRead.mutate(b.id));
-  }
 
   const visibleCount = (filtered ?? allBookmarks).length;
 
@@ -47,13 +38,14 @@ export default function Unread({ collections }: UnreadProps) {
             Bookmarks waiting to be read.
           </p>
         </div>
-        {visibleCount > 0 && (
+        {!isLoading && visibleCount > 0 && (
           <button
-            onClick={markAllRead}
-            className="flex items-center gap-2 px-4 py-2 text-sm border border-border rounded-lg text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors bg-card"
+            onClick={() => markAllRead.mutate()}
+            disabled={markAllRead.isPending}
+            className="flex items-center gap-2 px-4 py-2 text-sm border border-border rounded-lg text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors bg-card disabled:opacity-60"
           >
             <CheckCircleIcon size={14} />
-            Mark all read
+            {markAllRead.isPending ? "Marking…" : "Mark all read"}
           </button>
         )}
       </div>
@@ -68,7 +60,15 @@ export default function Unread({ collections }: UnreadProps) {
         />
       </div>
 
-      {filtered !== null && filtered.length === 0 ? (
+      {markAllRead.isError && (
+        <p className="text-sm text-red-600 mb-4">
+          Couldn't mark bookmarks as read. Please try again.
+        </p>
+      )}
+
+      {isLoading ? (
+        <SiftLoader label="Loading your unread bookmarks…" />
+      ) : filtered !== null && filtered.length === 0 ? (
         <div className="text-center py-16">
           <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center mx-auto mb-4">
             <EyeOffIcon size={22} className="text-muted-foreground" />
@@ -95,6 +95,7 @@ export default function Unread({ collections }: UnreadProps) {
           collections={collections}
           hasNextPage={filtered === null && hasNextPage}
           isFetchingNextPage={isFetchingNextPage}
+          isLoading={false}
           fetchNextPage={fetchNextPage}
           emptyState={
             <div className="text-center py-16">

@@ -3,6 +3,7 @@ import { ApiCollection } from "../types/api";
 import { StarIcon } from "../icons";
 import { useFavoriteBookmarksList } from "../hooks/useBookmarks";
 import InfiniteBookmarkList from "../components/InfiniteBookmarkList";
+import SiftLoader from "../components/SiftLoader";
 
 interface FavoritesProps {
   collections: ApiCollection[];
@@ -10,10 +11,9 @@ interface FavoritesProps {
 
 export default function Favorites({ collections }: FavoritesProps) {
   const [search, setSearch] = useState("");
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage } =
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
     useFavoriteBookmarksList();
 
-  // Client-side search over loaded pages only — same tradeoff as Inbox.tsx.
   const allBookmarks = data?.pages.flatMap((p) => p.items) ?? [];
   const filtered = search
     ? allBookmarks.filter(
@@ -45,7 +45,9 @@ export default function Favorites({ collections }: FavoritesProps) {
         />
       </div>
 
-      {filtered !== null && filtered.length === 0 ? (
+      {isLoading ? (
+        <SiftLoader label="Loading your favorites…" />
+      ) : filtered !== null && filtered.length === 0 ? (
         <div className="text-center py-16">
           <div className="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center mx-auto mb-4">
             <StarIcon size={22} className="text-amber-400" filled />
@@ -72,6 +74,7 @@ export default function Favorites({ collections }: FavoritesProps) {
           collections={collections}
           hasNextPage={filtered === null && hasNextPage}
           isFetchingNextPage={isFetchingNextPage}
+          isLoading={false}
           fetchNextPage={fetchNextPage}
           emptyState={
             <div className="text-center py-16">

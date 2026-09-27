@@ -6,6 +6,7 @@ import {
   useInboxBookmarksList,
 } from "../hooks/useBookmarks";
 import InfiniteBookmarkList from "../components/InfiniteBookmarkList";
+import SiftLoader from "../components/SiftLoader";
 
 interface CollectionDetailProps {
   collection:
@@ -27,12 +28,9 @@ export default function CollectionDetail({
   const namedQuery = useCollectionBookmarksList(
     isInbox ? undefined : collection.id,
   );
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage } = isInbox
-    ? inboxQuery
-    : namedQuery;
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
+    isInbox ? inboxQuery : namedQuery;
 
-  // Same as Inbox.tsx: client-side search over loaded pages only, since
-  // moving this specific filter server-side wasn't in scope here.
   const allBookmarks = data?.pages.flatMap((p) => p.items) ?? [];
   const filtered = search
     ? allBookmarks.filter(
@@ -42,9 +40,6 @@ export default function CollectionDetail({
       )
     : null;
 
-  // bookmarkCount/unreadCount are only present on real ApiCollection objects
-  // (enriched server-side), not on the synthetic inbox placeholder built by
-  // the router — so the inbox case just doesn't show a header count here.
   const bookmarkCount =
     "bookmarkCount" in collection ? collection.bookmarkCount : undefined;
   const unreadCount =
@@ -99,7 +94,9 @@ export default function CollectionDetail({
         />
       </div>
 
-      {filtered !== null && filtered.length === 0 ? (
+      {isLoading ? (
+        <SiftLoader label="Loading this collection…" />
+      ) : filtered !== null && filtered.length === 0 ? (
         <div className="text-center py-16">
           <FolderIcon
             size={24}
@@ -124,6 +121,7 @@ export default function CollectionDetail({
           collections={allCollections}
           hasNextPage={filtered === null && hasNextPage}
           isFetchingNextPage={isFetchingNextPage}
+          isLoading={false}
           fetchNextPage={fetchNextPage}
           emptyState={
             <div className="text-center py-16">

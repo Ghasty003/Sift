@@ -10,6 +10,7 @@ import {
 import { formatRelative, getAvatarColor, getInitials } from "../data";
 import { useDashboardSummary } from "../hooks/useDashboard";
 import { ApiBookmark } from "../types/api";
+import SiftLoader from "@/components/SiftLoader";
 
 interface DashboardProps {
   onNavigate: (
@@ -118,7 +119,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
   const { data, isLoading, isError } = useDashboardSummary();
 
   if (isLoading) {
-    return <div className="p-8 text-sm text-muted-foreground">Loading…</div>;
+    return <SiftLoader label="Loading your dashboard…" />;
   }
 
   if (isError || !data) {

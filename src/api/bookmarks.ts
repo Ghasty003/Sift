@@ -79,3 +79,12 @@ export async function removeTagFromBookmark(
 ): Promise<void> {
   await apiClient.delete(`/bookmarks/${bookmarkId}/tags/${tagId}`);
 }
+
+export async function markAllBookmarksRead(): Promise<{
+  updatedCount: number;
+}> {
+  const { data } = await apiClient.post<{ updatedCount: number }>(
+    "/bookmarks/mark-all-read",
+  );
+  return data;
+}

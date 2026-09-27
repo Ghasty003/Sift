@@ -3,12 +3,14 @@ import BookmarkCard from "./BookmarkCard";
 import { ApiBookmark, ApiCollection } from "../types/api";
 import { CursorPage } from "../api/bookmarks";
 import { InfiniteData } from "@tanstack/react-query";
+import SiftLoader from "./SiftLoader";
 
 interface InfiniteBookmarkListProps {
   data: InfiniteData<CursorPage<ApiBookmark>> | undefined;
   collections: ApiCollection[];
   hasNextPage: boolean;
   isFetchingNextPage: boolean;
+  isLoading: boolean;
   fetchNextPage: () => void;
   emptyState: React.ReactNode;
 }
@@ -18,6 +20,7 @@ export default function InfiniteBookmarkList({
   collections,
   hasNextPage,
   isFetchingNextPage,
+  isLoading,
   fetchNextPage,
   emptyState,
 }: InfiniteBookmarkListProps) {
@@ -33,12 +36,16 @@ export default function InfiniteBookmarkList({
           fetchNextPage();
         }
       },
-      { rootMargin: "300px" }, // start loading before the sentinel is actually visible
+      { rootMargin: "300px" },
     );
 
     observer.observe(el);
     return () => observer.disconnect();
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+
+  if (isLoading) {
+    return <SiftLoader label="Loading your bookmarks…" />;
+  }
 
   const bookmarks = data?.pages.flatMap((page) => page.items) ?? [];
 

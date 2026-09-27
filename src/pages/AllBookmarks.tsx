@@ -21,7 +21,7 @@ export default function AllBookmarks({
   );
   const [filterFavorite, setFilterFavorite] = useState(false);
 
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage } =
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
     useAllBookmarksList({
       collectionId: filterCollection || undefined,
       tagId: filterTag || undefined,
@@ -135,6 +135,7 @@ export default function AllBookmarks({
         hasNextPage={hasNextPage}
         isFetchingNextPage={isFetchingNextPage}
         fetchNextPage={fetchNextPage}
+        isLoading={isLoading}
         emptyState={
           <div className="text-center py-16">
             <BookmarkIcon
