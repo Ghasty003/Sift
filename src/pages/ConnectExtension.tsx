@@ -1,25 +1,51 @@
-import { useState } from 'react';
-import { useCreateApiToken } from '../hooks/useApiTokens';
+import { useState } from "react";
+import { useCreateApiToken } from "../hooks/useApiTokens";
 
 // postMessage target origin is always window.location.origin — the bridge
 // content script in the extension only listens on the page's own origin, so
 // this never needs to know its own domain explicitly.
+
+// Best-effort, human-friendly guess only — not real device detection. Just
+// gives the person a sensible starting point they can rename before
+// approving, so two browsers don't both end up saved as identical,
+// indistinguishable "Chrome Extension" rows.
+function getDefaultDeviceName(): string {
+  const ua = navigator.userAgent;
+
+  let browser = "Browser";
+  if (ua.includes("Firefox")) browser = "Firefox";
+  else if (ua.includes("Edg/")) browser = "Edge";
+  else if (ua.includes("Chrome")) browser = "Chrome";
+  else if (ua.includes("Safari")) browser = "Safari";
+
+  let os = "";
+  if (ua.includes("Mac OS X")) os = "macOS";
+  else if (ua.includes("Windows")) os = "Windows";
+  else if (ua.includes("Linux")) os = "Linux";
+  else if (ua.includes("Android")) os = "Android";
+
+  return os ? `${browser} on ${os}` : browser;
+}
+
 export default function ConnectExtension() {
   const createToken = useCreateApiToken();
   const [done, setDone] = useState(false);
+  const [deviceName, setDeviceName] = useState(getDefaultDeviceName);
 
   function handleApprove() {
+    const name = deviceName.trim() || getDefaultDeviceName();
+
     createToken.mutate(
-      { type: 'EXTENSION', name: 'Chrome Extension' },
+      { type: "EXTENSION", name },
       {
         onSuccess: (data) => {
           window.postMessage(
-            { type: 'SIFT_EXTENSION_TOKEN', token: data.token },
-            window.location.origin
+            { type: "SIFT_EXTENSION_TOKEN", token: data.token },
+            window.location.origin,
           );
           setDone(true);
         },
-      }
+      },
     );
   }
 
@@ -27,32 +53,63 @@ export default function ConnectExtension() {
     <div className="min-h-screen flex items-center justify-center bg-background p-6">
       <div className="w-full max-w-sm bg-card border border-border rounded-xl p-8 text-center">
         <div className="w-10 h-10 rounded-lg bg-primary mx-auto mb-5 flex items-center justify-center">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="white"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
             <path d="M4 6h16M4 12h8m-8 6h6" />
           </svg>
         </div>
 
         {!done ? (
           <>
-            <h1 className="text-lg font-bold text-foreground mb-2">Connect Chrome Extension</h1>
+            <h1 className="text-lg font-bold text-foreground mb-2">
+              Connect Chrome Extension
+            </h1>
             <p className="text-sm text-muted-foreground mb-6 leading-relaxed">
-              This lets the Sift Chrome extension save bookmarks to your account.
-              You can revoke access anytime from Settings.
+              This lets the Sift Chrome extension save bookmarks to your
+              account. You can revoke access anytime from Settings.
             </p>
+
+            <div className="text-left mb-5">
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+                Name this connection
+              </label>
+              <input
+                value={deviceName}
+                onChange={(e) => setDeviceName(e.target.value)}
+                placeholder="e.g. Work laptop"
+                className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+              <p className="text-xs text-muted-foreground mt-1.5">
+                Helps you tell this browser apart from others you connect later.
+              </p>
+            </div>
+
             <button
               onClick={handleApprove}
               disabled={createToken.isPending}
               className="w-full py-2.5 bg-primary text-primary-foreground rounded-lg text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60"
             >
-              {createToken.isPending ? 'Connecting…' : 'Approve connection'}
+              {createToken.isPending ? "Connecting…" : "Approve connection"}
             </button>
             {createToken.isError && (
-              <p className="text-xs text-red-600 mt-3">Something went wrong. Please try again.</p>
+              <p className="text-xs text-red-600 mt-3">
+                Something went wrong. Please try again.
+              </p>
             )}
           </>
         ) : (
           <>
-            <h1 className="text-lg font-bold text-foreground mb-2">Connected!</h1>
+            <h1 className="text-lg font-bold text-foreground mb-2">
+              Connected!
+            </h1>
             <p className="text-sm text-muted-foreground">
               You can close this tab and return to the extension.
             </p>

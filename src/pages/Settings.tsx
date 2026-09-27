@@ -1,8 +1,21 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { UserIcon, ChromeIcon, SmartphoneIcon, KeyIcon } from "../icons";
-import { getAvatarColor, getInitials } from "../data";
+import { getAvatarColor, getInitials, formatRelative } from "../data";
+import { useApiTokens, useRevokeApiToken } from "../hooks/useApiTokens";
+import {
+  useChangePassword,
+  useCurrentUser,
+  useDeleteAccount,
+  useUpdateProfile,
+} from "@/hooks/useCurrentUser";
 
 type Section = "account" | "extension" | "mobile";
+
+function getErrorMessage(error: unknown, fallback: string): string {
+  const message = (error as { response?: { data?: { message?: string } } })
+    ?.response?.data?.message;
+  return message ?? fallback;
+}
 
 function SectionNav({
   active,
@@ -46,14 +59,62 @@ function SectionNav({
 }
 
 function AccountSection() {
-  const [name, setName] = useState("Alex Chen");
-  const [email, setEmail] = useState("alex@example.com");
+  const { data: user } = useCurrentUser();
+  const updateProfile = useUpdateProfile();
+  const changePassword = useChangePassword();
+  const deleteAccount = useDeleteAccount();
+
+  const [fullName, setFullName] = useState(user?.fullName ?? "");
   const [saved, setSaved] = useState(false);
 
-  function handleSave() {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  // Keep the local input in sync once the real user loads/updates —
+  // this only overwrites local state when the source of truth changes,
+  // not on every render.
+  useEffect(() => {
+    if (user) setFullName(user.fullName);
+  }, [user?.fullName]);
+
+  function handleSaveProfile() {
+    updateProfile.mutate(fullName, {
+      onSuccess: () => {
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2000);
+      },
+    });
   }
+
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordSuccess, setPasswordSuccess] = useState(false);
+
+  const passwordMismatch =
+    confirmPassword.length > 0 && newPassword !== confirmPassword;
+
+  function handleChangePassword() {
+    if (
+      !currentPassword ||
+      !newPassword ||
+      !confirmPassword ||
+      passwordMismatch
+    )
+      return;
+
+    changePassword.mutate(
+      { currentPassword, newPassword },
+      {
+        onSuccess: () => {
+          setCurrentPassword("");
+          setNewPassword("");
+          setConfirmPassword("");
+          setPasswordSuccess(true);
+          setTimeout(() => setPasswordSuccess(false), 2000);
+        },
+      },
+    );
+  }
+
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   return (
     <div className="space-y-6">
@@ -70,13 +131,17 @@ function AccountSection() {
       <div className="flex items-center gap-4">
         <div
           className="w-14 h-14 rounded-full flex items-center justify-center text-lg text-white font-bold"
-          style={{ backgroundColor: getAvatarColor("alexchen") }}
+          style={{
+            backgroundColor: user ? getAvatarColor(user.email) : "#D4D4D8",
+          }}
         >
-          {getInitials("Alex Chen")}
+          {user ? getInitials(user.fullName) : ""}
         </div>
         <div>
-          <p className="text-sm font-medium text-foreground">{name}</p>
-          <p className="text-xs text-muted-foreground">{email}</p>
+          <p className="text-sm font-medium text-foreground">
+            {user?.fullName ?? "Loading…"}
+          </p>
+          <p className="text-xs text-muted-foreground">{user?.email ?? ""}</p>
         </div>
       </div>
 
@@ -86,8 +151,8 @@ function AccountSection() {
             Full name
           </label>
           <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
+            value={fullName}
+            onChange={(e) => setFullName(e.target.value)}
             className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring"
           />
         </div>
@@ -97,20 +162,33 @@ function AccountSection() {
           </label>
           <input
             type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+            value={user?.email ?? ""}
+            disabled
+            title="Email address can't be changed"
+            className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-muted text-muted-foreground cursor-not-allowed"
           />
         </div>
+
+        {updateProfile.isError && (
+          <p className="text-sm text-red-600">
+            {getErrorMessage(updateProfile.error, "Couldn't save changes.")}
+          </p>
+        )}
+
         <button
-          onClick={handleSave}
-          className={`px-4 py-2 text-sm rounded-lg font-medium transition-all ${
+          onClick={handleSaveProfile}
+          disabled={updateProfile.isPending || !fullName.trim()}
+          className={`px-4 py-2 text-sm rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
             saved
               ? "bg-primary/20 text-primary"
               : "bg-primary text-primary-foreground hover:opacity-90"
           }`}
         >
-          {saved ? "✓ Saved" : "Save changes"}
+          {updateProfile.isPending
+            ? "Saving…"
+            : saved
+              ? "✓ Saved"
+              : "Save changes"}
         </button>
       </div>
 
@@ -125,20 +203,50 @@ function AccountSection() {
           <input
             type="password"
             placeholder="Current password"
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
             className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
           />
           <input
             type="password"
             placeholder="New password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
             className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
           />
           <input
             type="password"
             placeholder="Confirm new password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
             className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
           />
-          <button className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 transition-opacity">
-            Update password
+          {passwordMismatch && (
+            <p className="text-sm text-red-600">Passwords don't match.</p>
+          )}
+          {changePassword.isError && (
+            <p className="text-sm text-red-600">
+              {getErrorMessage(
+                changePassword.error,
+                "Couldn't change password.",
+              )}
+            </p>
+          )}
+          {passwordSuccess && (
+            <p className="text-sm text-primary">✓ Password updated.</p>
+          )}
+          <button
+            onClick={handleChangePassword}
+            disabled={
+              changePassword.isPending ||
+              !currentPassword ||
+              !newPassword ||
+              !confirmPassword ||
+              passwordMismatch
+            }
+            className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {changePassword.isPending ? "Updating…" : "Update password"}
           </button>
         </div>
       </div>
@@ -151,15 +259,64 @@ function AccountSection() {
           Permanently delete your account and all your data. This cannot be
           undone.
         </p>
-        <button className="px-4 py-2 text-sm border border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition-colors">
-          Delete account
-        </button>
+
+        {confirmDelete ? (
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">Are you sure?</span>
+            <button
+              onClick={() => deleteAccount.mutate()}
+              disabled={deleteAccount.isPending}
+              className="px-4 py-2 text-sm text-red-600 font-medium border border-red-200 bg-red-50 rounded-lg hover:opacity-80 disabled:opacity-60"
+            >
+              {deleteAccount.isPending ? "Deleting…" : "Yes, delete my account"}
+            </button>
+            <button
+              onClick={() => setConfirmDelete(false)}
+              className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground"
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setConfirmDelete(true)}
+            className="px-4 py-2 text-sm border border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition-colors"
+          >
+            Delete account
+          </button>
+        )}
+
+        {deleteAccount.isError && (
+          <p className="text-sm text-red-600 mt-2">
+            {getErrorMessage(deleteAccount.error, "Couldn't delete account.")}
+          </p>
+        )}
       </div>
     </div>
   );
 }
 
 function ExtensionSection() {
+  const tokensQuery = useApiTokens();
+  const revoke = useRevokeApiToken();
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+
+  const extensionTokens = (tokensQuery.data ?? [])
+    .filter((t) => t.type === "EXTENSION" && t.revokedAt === null)
+    .sort((a, b) => {
+      const aTime = a.lastUsedAt ? new Date(a.lastUsedAt).getTime() : 0;
+      const bTime = b.lastUsedAt ? new Date(b.lastUsedAt).getTime() : 0;
+      return bTime - aTime;
+    });
+
+  const isConnected = extensionTokens.length > 0;
+
+  function handleRevoke(tokenId: string) {
+    revoke.mutate(tokenId, {
+      onSettled: () => setConfirmingId(null),
+    });
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -167,46 +324,103 @@ function ExtensionSection() {
           Chrome Extension
         </h2>
         <p className="text-sm text-muted-foreground">
-          Save X posts directly from your browser.
+          Save X posts directly from your browser. You can connect it on more
+          than one browser or device.
         </p>
       </div>
 
-      {/* Status card */}
-      <div className="bg-card border border-border rounded-xl p-5">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2.5">
-            <ChromeIcon size={18} className="text-muted-foreground" />
-            <span className="text-sm font-medium text-foreground">
-              Chrome Extension
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-2 h-2 rounded-full bg-green-500" />
-            <span className="text-xs text-green-700 font-medium">
-              Connected
-            </span>
-          </div>
+      {tokensQuery.isLoading && (
+        <p className="text-sm text-muted-foreground">Checking…</p>
+      )}
+
+      {tokensQuery.isError && (
+        <p className="text-sm text-red-600">
+          Couldn't load connection status. Please try refreshing.
+        </p>
+      )}
+
+      {!tokensQuery.isLoading && !tokensQuery.isError && !isConnected && (
+        <div className="bg-card border border-border rounded-xl p-5 text-center">
+          <ChromeIcon
+            size={20}
+            className="text-muted-foreground mx-auto mb-2"
+          />
+          <p className="text-sm text-muted-foreground">
+            No browsers connected yet.
+          </p>
         </div>
-        <div className="space-y-2 text-sm">
-          <div className="flex justify-between text-muted-foreground">
-            <span>Last used</span>
-            <span className="text-foreground">2 minutes ago</span>
-          </div>
-          <div className="flex justify-between text-muted-foreground">
-            <span>Version</span>
-            <span className="font-mono text-foreground">1.4.2</span>
-          </div>
-          <div className="flex justify-between text-muted-foreground">
-            <span>Browser</span>
-            <span className="text-foreground">Chrome 127</span>
-          </div>
+      )}
+
+      {!tokensQuery.isLoading && !tokensQuery.isError && isConnected && (
+        <div className="space-y-3">
+          {extensionTokens.map((token) => (
+            <div
+              key={token.tokenId}
+              className="bg-card border border-border rounded-xl p-5"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2.5">
+                  <ChromeIcon size={18} className="text-muted-foreground" />
+                  <span className="text-sm font-medium text-foreground">
+                    {token.name || "Chrome Extension"}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-full bg-green-500" />
+                  <span className="text-xs text-green-700 font-medium">
+                    Connected
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Connected</span>
+                  <span className="text-foreground">
+                    {formatRelative(token.createdAt)}
+                  </span>
+                </div>
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Last active</span>
+                  <span className="text-foreground">
+                    {token.lastUsedAt ? formatRelative(token.lastUsedAt) : "—"}
+                  </span>
+                </div>
+              </div>
+
+              <div className="mt-4 pt-4 border-t border-border">
+                {confirmingId === token.tokenId ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">
+                      Revoke access?
+                    </span>
+                    <button
+                      onClick={() => handleRevoke(token.tokenId)}
+                      disabled={revoke.isPending}
+                      className="text-xs text-red-600 font-medium hover:opacity-70 px-2 py-1 rounded border border-red-200 bg-red-50 disabled:opacity-60"
+                    >
+                      {revoke.isPending ? "…" : "Yes, revoke"}
+                    </button>
+                    <button
+                      onClick={() => setConfirmingId(null)}
+                      className="text-xs text-muted-foreground hover:text-foreground px-2 py-1"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setConfirmingId(token.tokenId)}
+                    className="text-sm text-red-600 hover:opacity-70 transition-opacity"
+                  >
+                    Revoke access
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
         </div>
-        <div className="mt-4 pt-4 border-t border-border">
-          <button className="text-sm text-red-600 hover:opacity-70 transition-opacity">
-            Revoke extension access
-          </button>
-        </div>
-      </div>
+      )}
 
       {/* Instructions */}
       <div className="bg-secondary/60 rounded-xl p-5">

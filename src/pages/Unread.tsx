@@ -1,30 +1,30 @@
-import React, { useState } from 'react';
-import { ApiBookmark, ApiCollection } from '../types/api';
-import BookmarkCard from '../components/BookmarkCard';
-import { EyeOffIcon, CheckCircleIcon } from '../icons';
-import { useToggleRead } from '../hooks/useBookmarks';
+import { useState } from "react";
+import { ApiCollection } from "../types/api";
+import { EyeOffIcon, CheckCircleIcon } from "../icons";
+import { useMarkAllRead, useUnreadBookmarksList } from "../hooks/useBookmarks";
+import InfiniteBookmarkList from "../components/InfiniteBookmarkList";
+import SiftLoader from "../components/SiftLoader";
 
 interface UnreadProps {
-  bookmarks: ApiBookmark[];
   collections: ApiCollection[];
 }
 
-export default function Unread({ bookmarks, collections }: UnreadProps) {
-  const [search, setSearch] = useState('');
-  const toggleRead = useToggleRead();
+export default function Unread({ collections }: UnreadProps) {
+  const [search, setSearch] = useState("");
+  const markAllRead = useMarkAllRead();
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
+    useUnreadBookmarksList();
 
-  const filtered = bookmarks.filter((b) =>
-    !search ||
-    b.tweet.text.toLowerCase().includes(search.toLowerCase()) ||
-    b.tweet.authorName.toLowerCase().includes(search.toLowerCase())
-  );
+  const allBookmarks = data?.pages.flatMap((p) => p.items) ?? [];
+  const filtered = search
+    ? allBookmarks.filter(
+        (b) =>
+          b.tweet.text.toLowerCase().includes(search.toLowerCase()) ||
+          b.tweet.authorName.toLowerCase().includes(search.toLowerCase()),
+      )
+    : null;
 
-  function markAllRead() {
-    // Fires one mutation per bookmark — the API has no bulk "mark all read"
-    // endpoint. Fine for realistic inbox sizes; revisit if this list ever
-    // needs to handle hundreds of items at once.
-    filtered.forEach((b) => toggleRead.mutate(b.id));
-  }
+  const visibleCount = (filtered ?? allBookmarks).length;
 
   return (
     <div className="p-6 lg:p-8 max-w-3xl mx-auto">
@@ -33,19 +33,19 @@ export default function Unread({ bookmarks, collections }: UnreadProps) {
           <div className="flex items-center gap-2 mb-1">
             <EyeOffIcon size={18} className="text-muted-foreground" />
             <h1 className="text-2xl font-bold text-foreground">Unread</h1>
-            <span className="text-sm text-muted-foreground bg-muted px-2 py-0.5 rounded-full ml-1">
-              {bookmarks.length}
-            </span>
           </div>
-          <p className="text-sm text-muted-foreground">Bookmarks waiting to be read.</p>
+          <p className="text-sm text-muted-foreground">
+            Bookmarks waiting to be read.
+          </p>
         </div>
-        {bookmarks.length > 0 && (
+        {!isLoading && visibleCount > 0 && (
           <button
-            onClick={markAllRead}
-            className="flex items-center gap-2 px-4 py-2 text-sm border border-border rounded-lg text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors bg-card"
+            onClick={() => markAllRead.mutate()}
+            disabled={markAllRead.isPending}
+            className="flex items-center gap-2 px-4 py-2 text-sm border border-border rounded-lg text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors bg-card disabled:opacity-60"
           >
             <CheckCircleIcon size={14} />
-            Mark all read
+            {markAllRead.isPending ? "Marking…" : "Mark all read"}
           </button>
         )}
       </div>
@@ -60,24 +60,57 @@ export default function Unread({ bookmarks, collections }: UnreadProps) {
         />
       </div>
 
-      {filtered.length === 0 ? (
+      {markAllRead.isError && (
+        <p className="text-sm text-red-600 mb-4">
+          Couldn't mark bookmarks as read. Please try again.
+        </p>
+      )}
+
+      {isLoading ? (
+        <SiftLoader label="Loading your unread bookmarks…" />
+      ) : filtered !== null && filtered.length === 0 ? (
         <div className="text-center py-16">
           <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center mx-auto mb-4">
             <EyeOffIcon size={22} className="text-muted-foreground" />
           </div>
           <h3 className="text-sm font-semibold text-foreground mb-1">
-            {search ? 'No results' : 'All caught up'}
+            No results
           </h3>
           <p className="text-sm text-muted-foreground max-w-xs mx-auto">
-            {search ? 'Try a different search.' : "No unread bookmarks. You're all caught up."}
+            Try a different search.
           </p>
         </div>
       ) : (
-        <div className="space-y-4">
-          {filtered.map((b) => (
-            <BookmarkCard key={b.id} bookmark={b} collections={collections} />
-          ))}
-        </div>
+        <InfiniteBookmarkList
+          data={
+            filtered !== null
+              ? {
+                  pages: [
+                    { items: filtered, nextCursor: null, hasMore: false },
+                  ],
+                  pageParams: [undefined],
+                }
+              : data
+          }
+          collections={collections}
+          hasNextPage={filtered === null && hasNextPage}
+          isFetchingNextPage={isFetchingNextPage}
+          isLoading={false}
+          fetchNextPage={fetchNextPage}
+          emptyState={
+            <div className="text-center py-16">
+              <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center mx-auto mb-4">
+                <EyeOffIcon size={22} className="text-muted-foreground" />
+              </div>
+              <h3 className="text-sm font-semibold text-foreground mb-1">
+                All caught up
+              </h3>
+              <p className="text-sm text-muted-foreground max-w-xs mx-auto">
+                No unread bookmarks. You're all caught up.
+              </p>
+            </div>
+          }
+        />
       )}
     </div>
   );

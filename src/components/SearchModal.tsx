@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Page } from "../types";
 import { ApiBookmark, ApiCollection, ApiTag } from "../types/api";
+import { fetchBookmarksPage } from "../api/bookmarks";
 import { SearchIcon, XIcon, BookmarkIcon, FolderIcon, TagIcon } from "../icons";
 
 interface SearchModalProps {
-  bookmarks: ApiBookmark[];
   collections: ApiCollection[];
   allTags: ApiTag[];
   onClose: () => void;
@@ -41,7 +41,6 @@ function highlight(text: string, query: string): React.ReactNode {
 }
 
 export default function SearchModal({
-  bookmarks,
   collections,
   allTags,
   onClose,
@@ -49,7 +48,10 @@ export default function SearchModal({
 }: SearchModalProps) {
   const [query, setQuery] = useState("");
   const [activeIdx, setActiveIdx] = useState(0);
+  const [bookmarkResults, setBookmarkResults] = useState<ApiBookmark[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const requestIdRef = useRef(0);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -65,29 +67,53 @@ export default function SearchModal({
 
   const q = query.trim().toLowerCase();
 
+  // Debounced backend search for bookmarks — there's no full in-memory
+  // bookmark list to filter anymore now that lists are paginated. Collections
+  // and tags stay client-side below since those are always fetched in full.
+  useEffect(() => {
+    if (!q) {
+      setBookmarkResults([]);
+      setIsSearching(false);
+      return;
+    }
+
+    setIsSearching(true);
+    const requestId = ++requestIdRef.current;
+
+    const timeout = setTimeout(async () => {
+      try {
+        const page = await fetchBookmarksPage({ search: q, limit: 8 });
+        // Ignore results from a stale, superseded request.
+        if (requestId === requestIdRef.current) {
+          setBookmarkResults(page.items);
+        }
+      } catch {
+        if (requestId === requestIdRef.current) {
+          setBookmarkResults([]);
+        }
+      } finally {
+        if (requestId === requestIdRef.current) {
+          setIsSearching(false);
+        }
+      }
+    }, 250);
+
+    return () => clearTimeout(timeout);
+  }, [q]);
+
   const results: Result[] = [];
 
   if (q) {
-    bookmarks
-      .filter(
-        (b) =>
-          b.tweet.text.toLowerCase().includes(q) ||
-          b.tweet.authorName.toLowerCase().includes(q) ||
-          b.tweet.authorUsername.toLowerCase().includes(q) ||
-          (b.note?.content.toLowerCase().includes(q) ?? false) ||
-          b.tags.some((t) => t.name.toLowerCase().includes(q)),
-      )
-      .slice(0, 8)
-      .forEach((b) => {
-        results.push({
-          type: "bookmark",
-          id: b.id,
-          title: b.tweet.authorName,
-          subtitle:
-            b.tweet.text.slice(0, 80) + (b.tweet.text.length > 80 ? "…" : ""),
-          page: "all-bookmarks",
-        });
+    bookmarkResults.forEach((b) => {
+      results.push({
+        type: "bookmark",
+        id: b.id,
+        title: b.tweet.authorName,
+        subtitle:
+          b.tweet.text.slice(0, 80) + (b.tweet.text.length > 80 ? "…" : ""),
+        page: "all-bookmarks",
       });
+    });
 
     collections
       .filter(
@@ -179,7 +205,13 @@ export default function SearchModal({
         </div>
 
         <div className="max-h-80 overflow-y-auto">
-          {q && results.length === 0 && (
+          {q && isSearching && results.length === 0 && (
+            <div className="py-12 text-center">
+              <p className="text-sm text-muted-foreground">Searching…</p>
+            </div>
+          )}
+
+          {q && !isSearching && results.length === 0 && (
             <div className="py-12 text-center">
               <p className="text-sm text-muted-foreground">
                 No results for &ldquo;{query}&rdquo;

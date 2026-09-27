@@ -86,11 +86,7 @@ function PasswordStrength({ password }: { password: string }) {
 }
 
 export default function Signup() {
-  // NOTE: `name` is kept in the UI but not sent to the API — the register
-  // spec described the same body shape as login (email + password only). If
-  // there's a separate profile-update endpoint for display name, wire it
-  // here as a follow-up call after registration succeeds.
-  const [name, setName] = useState("");
+  const [fullName, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -102,7 +98,7 @@ export default function Signup() {
 
   function validate() {
     const e: Record<string, string> = {};
-    if (!name.trim()) e.name = "Name is required.";
+    if (!fullName.trim()) e.name = "Name is required.";
     if (!email) e.email = "Email is required.";
     else if (!/\S+@\S+\.\S+/.test(email))
       e.email = "Enter a valid email address.";
@@ -123,7 +119,7 @@ export default function Signup() {
     setErrors({});
 
     register.mutate(
-      { email, password },
+      { email, password, fullName },
       {
         onSuccess: () => navigate("/dashboard"),
         onError: () =>
@@ -299,7 +295,7 @@ export default function Signup() {
               </label>
               <input
                 type="text"
-                value={name}
+                value={fullName}
                 onChange={(e) => setName(e.target.value)}
                 autoComplete="name"
                 placeholder="Alex Chen"

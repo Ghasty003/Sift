@@ -5,13 +5,13 @@ import SearchModal from "../components/SearchModal";
 import QueryGate from "../components/QueryGate";
 import { pageToPath } from "../lib/legacyNav";
 import { Page } from "../types";
-import { useBookmarks } from "../hooks/useBookmarks";
 import { useCollections } from "../hooks/useCollections";
+import { useTags } from "../hooks/useTags";
 import TopBar from "@/components/TopBar";
 
 export default function AppLayout() {
-  const bookmarksQuery = useBookmarks();
   const collectionsQuery = useCollections();
+  const tagsQuery = useTags();
 
   const [searchOpen, setSearchOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -37,18 +37,10 @@ export default function AppLayout() {
   }
 
   return (
-    <QueryGate queries={[bookmarksQuery, collectionsQuery]}>
+    <QueryGate queries={[collectionsQuery, tagsQuery]}>
       {() => {
-        const bookmarks = bookmarksQuery.data ?? [];
         const collections = collectionsQuery.data ?? [];
-
-        // Tags are derived from bookmarks (no dedicated "all tags with
-        // counts" endpoint needed — see integration notes), deduped by id.
-        const allTags = Array.from(
-          new Map(
-            bookmarks.flatMap((b) => b.tags).map((t) => [t.id, t]),
-          ).values(),
-        );
+        const allTags = tagsQuery.data ?? [];
 
         return (
           <div className="flex h-screen bg-background text-foreground overflow-hidden">
@@ -62,7 +54,6 @@ export default function AppLayout() {
             <Sidebar
               onNavigate={legacyNavigate}
               collections={collections}
-              bookmarks={bookmarks}
               isOpen={sidebarOpen}
               onClose={() => setSidebarOpen(false)}
             />
@@ -79,7 +70,6 @@ export default function AppLayout() {
 
             {searchOpen && (
               <SearchModal
-                bookmarks={bookmarks}
                 collections={collections}
                 allTags={allTags}
                 onClose={() => setSearchOpen(false)}

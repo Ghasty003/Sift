@@ -1,7 +1,7 @@
 import React, { useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Page } from "../types";
-import { ApiBookmark, ApiCollection } from "../types/api";
+import { ApiCollection } from "../types/api";
 import {
   InboxIcon,
   BookmarkIcon,
@@ -14,10 +14,15 @@ import {
   XIcon,
   ChevronDownIcon,
   ChevronRightIcon,
+  GridIcon,
+  LogOutIcon,
 } from "../icons";
 import { getAvatarColor, getInitials } from "../data";
 import { pageToPath } from "../lib/legacyNav";
 import { useCreateCollection } from "../hooks/useCollections";
+import { useCurrentUser } from "../hooks/useCurrentUser";
+import { useLogout } from "../hooks/useAuth";
+import { useDashboardSummary } from "../hooks/useDashboard";
 
 interface SidebarProps {
   onNavigate: (
@@ -25,7 +30,6 @@ interface SidebarProps {
     params?: { collectionId?: string; tag?: string },
   ) => void;
   collections: ApiCollection[];
-  bookmarks: ApiBookmark[];
   isOpen: boolean;
   onClose: () => void;
 }
@@ -107,18 +111,22 @@ function CreateCollectionModal({
 export default function Sidebar({
   onNavigate,
   collections,
-  bookmarks,
   isOpen,
   onClose,
 }: SidebarProps) {
   const [collectionsExpanded, setCollectionsExpanded] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [confirmLogout, setConfirmLogout] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
   const createCollection = useCreateCollection();
+  const { data: user } = useCurrentUser();
+  const logout = useLogout();
+  const { data: summary } = useDashboardSummary();
 
-  const inboxCount = bookmarks.filter((b) => b.collection === null).length;
-  const favoritesCount = bookmarks.filter((b) => b.isFavorite).length;
-  const unreadCount = bookmarks.filter((b) => !b.isRead).length;
+  const inboxCount = summary?.inboxCount ?? 0;
+  const favoritesCount = summary?.favoriteCount ?? 0;
+  const unreadCount = summary?.unreadCount ?? 0;
 
   function navItem(
     label: string,
@@ -164,6 +172,12 @@ export default function Sidebar({
     );
   }
 
+  function handleLogout() {
+    logout.mutate(undefined, {
+      onSuccess: () => navigate("/login"),
+    });
+  }
+
   const sidebarContent = (
     <div className="flex flex-col h-full py-4">
       {/* Logo */}
@@ -197,6 +211,7 @@ export default function Sidebar({
 
       {/* Primary nav */}
       <nav className="px-2 space-y-0.5">
+        {navItem("Dashboard", <GridIcon size={15} />, "dashboard")}
         {navItem("Inbox", <InboxIcon size={15} />, "inbox", inboxCount)}
         {navItem("All Bookmarks", <BookmarkIcon size={15} />, "all-bookmarks")}
         {navItem(
@@ -237,9 +252,6 @@ export default function Sidebar({
         {collectionsExpanded && (
           <div className="mt-1 space-y-0.5">
             {collections.map((c) => {
-              const count = bookmarks.filter(
-                (b) => b.collection?.id === c.id,
-              ).length;
               const isActive = location.pathname === `/collections/${c.id}`;
               return (
                 <button
@@ -256,7 +268,9 @@ export default function Sidebar({
                 >
                   <FolderIcon size={14} />
                   <span className="flex-1 truncate">{c.name}</span>
-                  <span className="text-xs text-muted-foreground">{count}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {c.bookmarkCount}
+                  </span>
                 </button>
               );
             })}
@@ -272,8 +286,8 @@ export default function Sidebar({
         {navItem("Settings", <SettingsIcon size={15} />, "settings")}
       </div>
 
-      {/* User — static placeholder; wire to a real /me endpoint once one exists */}
-      <div className="mt-3 px-3">
+      {/* User */}
+      <div className="mt-3 px-3 space-y-1">
         <button
           onClick={() => {
             onNavigate("settings");
@@ -283,19 +297,50 @@ export default function Sidebar({
         >
           <div
             className="w-7 h-7 rounded-full flex items-center justify-center text-xs text-white font-semibold shrink-0"
-            style={{ backgroundColor: getAvatarColor("alexchen") }}
+            style={{
+              backgroundColor: user ? getAvatarColor(user.email) : "#D4D4D8",
+            }}
           >
-            {getInitials("Alex Chen")}
+            {user ? getInitials(user.fullName) : ""}
           </div>
           <div className="text-left min-w-0">
             <p className="text-xs font-medium text-foreground truncate">
-              Alex Chen
+              {user?.fullName ?? "Loading…"}
             </p>
             <p className="text-xs text-muted-foreground truncate">
-              alex@example.com
+              {user?.email ?? ""}
             </p>
           </div>
         </button>
+
+        {confirmLogout ? (
+          <div className="flex items-center gap-2 px-2 py-1">
+            <span className="text-xs text-muted-foreground flex-1">
+              Log out?
+            </span>
+            <button
+              onClick={handleLogout}
+              disabled={logout.isPending}
+              className="text-xs text-red-600 font-medium hover:opacity-70 px-2 py-1 rounded border border-red-200 bg-red-50 disabled:opacity-60"
+            >
+              {logout.isPending ? "…" : "Yes"}
+            </button>
+            <button
+              onClick={() => setConfirmLogout(false)}
+              className="text-xs text-muted-foreground hover:text-foreground px-1"
+            >
+              No
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setConfirmLogout(true)}
+            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-left text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+          >
+            <LogOutIcon size={15} />
+            <span>Log out</span>
+          </button>
+        )}
       </div>
     </div>
   );

@@ -1,14 +1,14 @@
 import React, { useState } from "react";
-import { ApiBookmark, ApiCollection } from "../types/api";
+import { ApiCollection } from "../types/api";
 import { FolderIcon, PlusIcon, MoreHorizontalIcon, TrashIcon } from "../icons";
 import { formatDate } from "../data";
+import { useDashboardSummary } from "../hooks/useDashboard";
 import {
   useCreateCollection,
   useDeleteCollection,
 } from "../hooks/useCollections";
 
 interface CollectionsProps {
-  bookmarks: ApiBookmark[];
   collections: ApiCollection[];
   onSelectCollection: (id: string) => void;
 }
@@ -139,7 +139,6 @@ function DeleteCollectionModal({
 }
 
 export default function Collections({
-  bookmarks,
   collections,
   onSelectCollection,
 }: CollectionsProps) {
@@ -151,6 +150,9 @@ export default function Collections({
 
   const createCollection = useCreateCollection();
   const deleteCollection = useDeleteCollection();
+  // Inbox has no ApiCollection row of its own, so its count comes from the
+  // same dashboard summary endpoint rather than a bookmarks fetch here.
+  const { data: summary } = useDashboardSummary();
 
   function handleCreate(name: string, description: string) {
     createCollection.mutate(
@@ -166,11 +168,8 @@ export default function Collections({
     });
   }
 
-  const inboxCount = bookmarks.filter((b) => b.collection === null).length;
-
   return (
     <div className="p-6 lg:p-8 max-w-4xl mx-auto">
-      {/* Header */}
       <div className="flex items-start justify-between mb-8">
         <div>
           <div className="flex items-center gap-2 mb-1">
@@ -190,7 +189,6 @@ export default function Collections({
         </button>
       </div>
 
-      {/* Inbox (special) */}
       <div className="mb-4">
         <button
           onClick={() => onSelectCollection("inbox")}
@@ -210,7 +208,7 @@ export default function Collections({
             </div>
             <div className="text-right">
               <p className="text-2xl font-bold text-foreground tabular-nums">
-                {inboxCount}
+                {summary?.inboxCount ?? "—"}
               </p>
               <p className="text-xs text-muted-foreground">bookmarks</p>
             </div>
@@ -218,7 +216,6 @@ export default function Collections({
         </button>
       </div>
 
-      {/* Collections grid */}
       {collections.length === 0 ? (
         <div className="text-center py-16">
           <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center mx-auto mb-4">
@@ -239,93 +236,73 @@ export default function Collections({
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {collections.map((c) => {
-            const collectionBookmarks = bookmarks.filter(
-              (b) => b.collection?.id === c.id,
-            );
-            const count = collectionBookmarks.length;
-            const unread = collectionBookmarks.filter((b) => !b.isRead).length;
-            const recent = [...collectionBookmarks].sort(
-              (a, b) =>
-                new Date(b.savedAt).getTime() - new Date(a.savedAt).getTime(),
-            )[0];
-
-            return (
-              <div key={c.id} className="relative group">
-                <button
-                  onClick={() => onSelectCollection(c.id)}
-                  className="w-full bg-card border border-border rounded-xl p-5 text-left hover:border-foreground/20 transition-colors"
-                >
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center shrink-0">
-                        <FolderIcon
-                          size={14}
-                          className="text-muted-foreground"
-                        />
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-foreground">
-                          {c.name}
-                        </p>
-                        {c.description && (
-                          <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
-                            {c.description}
-                          </p>
-                        )}
-                      </div>
+          {collections.map((c) => (
+            <div key={c.id} className="relative group">
+              <button
+                onClick={() => onSelectCollection(c.id)}
+                className="w-full bg-card border border-border rounded-xl p-5 text-left hover:border-foreground/20 transition-colors"
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center shrink-0">
+                      <FolderIcon size={14} className="text-muted-foreground" />
                     </div>
-                    <div className="text-right shrink-0">
-                      <p className="text-xl font-bold text-foreground tabular-nums">
-                        {count}
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">
+                        {c.name}
                       </p>
-                      {unread > 0 && (
-                        <p className="text-xs text-primary">{unread} unread</p>
+                      {c.description && (
+                        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
+                          {c.description}
+                        </p>
                       )}
                     </div>
                   </div>
-
-                  {recent && (
-                    <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed border-t border-border pt-3">
-                      {recent.tweet.text.slice(0, 100)}
-                      {recent.tweet.text.length > 100 ? "…" : ""}
+                  <div className="text-right shrink-0">
+                    <p className="text-xl font-bold text-foreground tabular-nums">
+                      {c.bookmarkCount}
                     </p>
-                  )}
-
-                  <p className="text-xs text-muted-foreground mt-2">
-                    Created {formatDate(c.createdAt)}
-                  </p>
-                </button>
-
-                <div className="absolute top-3 right-3">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setMenuOpen(menuOpen === c.id ? null : c.id);
-                    }}
-                    className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors opacity-0 group-hover:opacity-100"
-                  >
-                    <MoreHorizontalIcon size={14} />
-                  </button>
-                  {menuOpen === c.id && (
-                    <div className="absolute right-0 top-full mt-1 z-20 bg-card border border-border rounded-lg shadow-lg py-1 min-w-36">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setMenuOpen(null);
-                          setPendingDelete(c);
-                        }}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
-                      >
-                        <TrashIcon size={13} />
-                        Delete collection
-                      </button>
-                    </div>
-                  )}
+                    {c.unreadCount > 0 && (
+                      <p className="text-xs text-primary">
+                        {c.unreadCount} unread
+                      </p>
+                    )}
+                  </div>
                 </div>
+
+                <p className="text-xs text-muted-foreground mt-2">
+                  Created {formatDate(c.createdAt)}
+                </p>
+              </button>
+
+              <div className="absolute top-3 right-3">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setMenuOpen(menuOpen === c.id ? null : c.id);
+                  }}
+                  className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors opacity-0 group-hover:opacity-100"
+                >
+                  <MoreHorizontalIcon size={14} />
+                </button>
+                {menuOpen === c.id && (
+                  <div className="absolute right-0 top-full mt-1 z-20 bg-card border border-border rounded-lg shadow-lg py-1 min-w-36">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setMenuOpen(null);
+                        setPendingDelete(c);
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                    >
+                      <TrashIcon size={13} />
+                      Delete collection
+                    </button>
+                  </div>
+                )}
               </div>
-            );
-          })}
+            </div>
+          ))}
         </div>
       )}
 
@@ -340,10 +317,7 @@ export default function Collections({
       {pendingDelete && (
         <DeleteCollectionModal
           collectionName={pendingDelete.name}
-          bookmarkCount={
-            bookmarks.filter((b) => b.collection?.id === pendingDelete.id)
-              .length
-          }
+          bookmarkCount={pendingDelete.bookmarkCount}
           onClose={() => setPendingDelete(null)}
           onConfirm={handleConfirmDelete}
           deleting={deleteCollection.isPending}
