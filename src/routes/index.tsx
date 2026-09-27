@@ -24,6 +24,7 @@ import Favorites from "../pages/Favorites";
 import Unread from "../pages/Unread";
 import Settings from "../pages/Settings";
 import NotFound from "../pages/NotFound";
+import Landing from "../pages/Landing";
 
 import { useCollections } from "../hooks/useCollections";
 import { useTags } from "../hooks/useTags";
@@ -187,7 +188,18 @@ function UnreadRoute() {
   );
 }
 
+function LandingRoute() {
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+
+  if (isAuthenticated) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return <Landing />;
+}
+
 export const router = createBrowserRouter([
+  { path: "/", element: <LandingRoute /> },
   { path: "/login", element: <Login /> },
   { path: "/signup", element: <Signup /> },
   {
@@ -206,7 +218,6 @@ export const router = createBrowserRouter([
       </RequireAuth>
     ),
     children: [
-      { index: true, element: <Navigate to="/dashboard" replace /> },
       { path: "dashboard", element: <DashboardRoute /> },
       { path: "inbox", element: <InboxRoute /> },
       { path: "all-bookmarks", element: <AllBookmarksRoute /> },
