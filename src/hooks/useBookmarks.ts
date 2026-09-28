@@ -8,6 +8,8 @@ import {
   addBookmarkToCollection,
   addTagToBookmark,
   BookmarkFilters,
+  bulkDeleteBookmarks,
+  bulkMoveBookmarks,
   deleteBookmark,
   fetchBookmarksPage,
   markAllBookmarksRead,
@@ -38,8 +40,8 @@ export function useAllBookmarksList(
   return useBookmarkList(filters);
 }
 
-export function useInboxBookmarksList() {
-  return useBookmarkList({ collectionId: "inbox" });
+export function useInboxBookmarksList(sort: "newest" | "oldest" = "newest") {
+  return useBookmarkList({ collectionId: "inbox", sort });
 }
 
 export function useFavoriteBookmarksList() {
@@ -151,5 +153,31 @@ export function useMarkAllRead() {
       queryClient.invalidateQueries({ queryKey: ["bookmarks"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
     },
+  });
+}
+
+export function useBulkDelete() {
+  const invalidate = useInvalidateAllBookmarkLists();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (bookmarkIds: string[]) => bulkDeleteBookmarks(bookmarkIds),
+    onSuccess: () => {
+      invalidate();
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+  });
+}
+
+export function useBulkMove() {
+  const invalidate = useInvalidateAllBookmarkLists();
+  return useMutation({
+    mutationFn: ({
+      bookmarkIds,
+      collectionId,
+    }: {
+      bookmarkIds: string[];
+      collectionId: string;
+    }) => bulkMoveBookmarks(bookmarkIds, collectionId),
+    onSuccess: invalidate,
   });
 }

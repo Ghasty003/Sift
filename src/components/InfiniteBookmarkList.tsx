@@ -4,6 +4,7 @@ import { ApiBookmark, ApiCollection } from "../types/api";
 import { CursorPage } from "../api/bookmarks";
 import { InfiniteData } from "@tanstack/react-query";
 import SiftLoader from "./SiftLoader";
+import { CheckCircleIcon, CircleIcon } from "../icons";
 
 interface InfiniteBookmarkListProps {
   data: InfiniteData<CursorPage<ApiBookmark>> | undefined;
@@ -13,6 +14,9 @@ interface InfiniteBookmarkListProps {
   isLoading: boolean;
   fetchNextPage: () => void;
   emptyState: React.ReactNode;
+  selectMode?: boolean;
+  selectedIds?: string[];
+  onToggleSelect?: (id: string) => void;
 }
 
 export default function InfiniteBookmarkList({
@@ -23,6 +27,9 @@ export default function InfiniteBookmarkList({
   isLoading,
   fetchNextPage,
   emptyState,
+  selectMode = false,
+  selectedIds = [],
+  onToggleSelect,
 }: InfiniteBookmarkListProps) {
   const sentinelRef = useRef<HTMLDivElement>(null);
 
@@ -56,7 +63,23 @@ export default function InfiniteBookmarkList({
   return (
     <div className="space-y-4">
       {bookmarks.map((b) => (
-        <BookmarkCard key={b.id} bookmark={b} collections={collections} />
+        <div key={b.id} className="flex items-start gap-2">
+          {selectMode && (
+            <button
+              onClick={() => onToggleSelect?.(b.id)}
+              className="mt-6 shrink-0 text-muted-foreground hover:text-primary transition-colors"
+            >
+              {selectedIds.includes(b.id) ? (
+                <CheckCircleIcon size={18} className="text-primary" />
+              ) : (
+                <CircleIcon size={18} />
+              )}
+            </button>
+          )}
+          <div className="flex-1 min-w-0">
+            <BookmarkCard bookmark={b} collections={collections} />
+          </div>
+        </div>
       ))}
       <div ref={sentinelRef} aria-hidden className="h-px" />
       {isFetchingNextPage && (

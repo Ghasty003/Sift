@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
+import { AnimatePresence } from "motion/react";
 import Sidebar from "../components/Sidebar";
+import BottomNav from "../components/BottomNav";
 import SearchModal from "../components/SearchModal";
 import QueryGate from "../components/QueryGate";
 import { pageToPath } from "../lib/legacyNav";
@@ -14,7 +16,6 @@ export default function AppLayout() {
   const tagsQuery = useTags();
 
   const [searchOpen, setSearchOpen] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -33,7 +34,6 @@ export default function AppLayout() {
     params?: { collectionId?: string; tag?: string },
   ) {
     navigate(pageToPath(page, params));
-    setSidebarOpen(false);
   }
 
   return (
@@ -44,41 +44,37 @@ export default function AppLayout() {
 
         return (
           <div className="flex h-screen bg-background text-foreground overflow-hidden">
-            {sidebarOpen && (
-              <div
-                className="fixed inset-0 bg-black/30 z-40 lg:hidden"
-                onClick={() => setSidebarOpen(false)}
-              />
-            )}
-
-            <Sidebar
-              onNavigate={legacyNavigate}
-              collections={collections}
-              isOpen={sidebarOpen}
-              onClose={() => setSidebarOpen(false)}
-            />
+            <Sidebar onNavigate={legacyNavigate} collections={collections} />
 
             <div className="flex-1 flex flex-col min-w-0 h-full">
-              <TopBar
-                onSearchOpen={() => setSearchOpen(true)}
-                onMenuOpen={() => setSidebarOpen(true)}
-              />
-              <main className="flex-1 overflow-y-auto">
+              <TopBar onSearchOpen={() => setSearchOpen(true)} />
+              <main className="flex-1 overflow-y-auto pb-16 lg:pb-0">
                 <Outlet />
               </main>
+              <BottomNav
+                collections={collections}
+                onNavigate={legacyNavigate}
+                onOpenSearch={() => setSearchOpen(true)}
+              />
             </div>
 
-            {searchOpen && (
-              <SearchModal
-                collections={collections}
-                allTags={allTags}
-                onClose={() => setSearchOpen(false)}
-                onNavigate={(page, params) => {
-                  legacyNavigate(page, params);
-                  setSearchOpen(false);
-                }}
-              />
-            )}
+            <AnimatePresence>
+              {searchOpen && (
+                <SearchModal
+                  collections={collections}
+                  allTags={allTags}
+                  onClose={() => setSearchOpen(false)}
+                  onNavigate={(page, params) => {
+                    legacyNavigate(page, params);
+                    setSearchOpen(false);
+                  }}
+                  onSearchAll={(query) => {
+                    navigate(`/all-bookmarks?q=${encodeURIComponent(query)}`);
+                    setSearchOpen(false);
+                  }}
+                />
+              )}
+            </AnimatePresence>
           </div>
         );
       }}

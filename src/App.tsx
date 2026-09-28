@@ -3,6 +3,7 @@ import { RouterProvider } from "react-router-dom";
 import { queryClient } from "@/lib/queryClient";
 import { router } from "@/routes";
 import { useAuthBootstrap } from "@/hooks/useAuthBootstrap";
+import { ToastProvider } from "./components/Toast";
 
 function AuthGate({ children }: { children: React.ReactNode }) {
   const isChecking = useAuthBootstrap();
@@ -20,10 +21,12 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthGate>
-        <RouterProvider router={router} />
-      </AuthGate>
-    </QueryClientProvider>
+    <ToastProvider>
+      <QueryClientProvider client={queryClient}>
+        <AuthGate>
+          <RouterProvider router={router} />
+        </AuthGate>
+      </QueryClientProvider>
+    </ToastProvider>
   );
 }

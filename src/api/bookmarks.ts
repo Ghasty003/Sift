@@ -15,6 +15,7 @@ export interface BookmarkFilters {
   search?: string;
   cursor?: string;
   limit?: number;
+  sort?: "newest" | "oldest";
 }
 
 export async function fetchBookmarksPage(
@@ -85,6 +86,27 @@ export async function markAllBookmarksRead(): Promise<{
 }> {
   const { data } = await apiClient.post<{ updatedCount: number }>(
     "/bookmarks/mark-all-read",
+  );
+  return data;
+}
+
+export async function bulkDeleteBookmarks(
+  bookmarkIds: string[],
+): Promise<{ deletedCount: number }> {
+  const { data } = await apiClient.post<{ deletedCount: number }>(
+    "/bookmarks/bulk-delete",
+    { bookmarkIds },
+  );
+  return data;
+}
+
+export async function bulkMoveBookmarks(
+  bookmarkIds: string[],
+  collectionId: string,
+): Promise<{ movedCount: number }> {
+  const { data } = await apiClient.post<{ movedCount: number }>(
+    "/bookmarks/bulk-move",
+    { bookmarkIds, collectionId },
   );
   return data;
 }

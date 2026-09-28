@@ -275,3 +275,10 @@ export const LogOutIcon = makeIcon(
     <line x1="21" x2="9" y1="12" y2="12" />
   </>,
 );
+
+export const ClockIcon = makeIcon(
+  <>
+    <circle cx="12" cy="12" r="10" />
+    <polyline points="12 6 12 12 16 14" />
+  </>,
+);
