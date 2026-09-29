@@ -41,7 +41,6 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     ) => {
       const id = crypto.randomUUID();
       setToasts((prev) => [...prev, { id, message, ...opts }]);
-      // Auto-dismiss after 5s — long enough to act on Undo without lingering.
       setTimeout(() => {
         setToasts((prev) => prev.filter((t) => t.id !== id));
       }, 5000);
@@ -56,7 +55,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={{ show }}>
       {children}
-      <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-100 flex flex-col gap-2 items-center">
+
+      <div className="fixed bottom-20 lg:bottom-5 left-1/2 -translate-x-1/2 z-100 flex flex-col gap-2 items-center pointer-events-none">
         <AnimatePresence>
           {toasts.map((t) => (
             <motion.div
@@ -66,7 +66,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.12 } }}
               transition={MOTION.ui}
-              className="flex items-center gap-3 bg-foreground text-background rounded-lg pl-3 pr-2 py-2 shadow-lg text-sm"
+              className="pointer-events-auto flex items-center gap-3 bg-foreground text-background rounded-lg pl-3 pr-2 py-2 shadow-lg text-sm"
             >
               <CheckIcon size={14} className="shrink-0" />
               <span>{t.message}</span>

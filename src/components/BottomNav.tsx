@@ -55,7 +55,7 @@ export default function BottomNav({
         >
           {icon}
           {badge !== undefined && badge > 0 && (
-            <span className="absolute -top-1 -right-1.5 min-w-[14px] h-[14px] px-0.5 rounded-full bg-primary text-primary-foreground text-[9px] font-medium flex items-center justify-center">
+            <span className="absolute -top-1 -right-1.5 min-w-3.5 h-3.5 px-0.5 rounded-full bg-primary text-primary-foreground text-[9px] font-medium flex items-center justify-center">
               {badge > 99 ? "99+" : badge}
             </span>
           )}

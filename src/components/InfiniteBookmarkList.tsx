@@ -12,6 +12,8 @@ interface InfiniteBookmarkListProps {
   hasNextPage: boolean;
   isFetchingNextPage: boolean;
   isLoading: boolean;
+  isError?: boolean;
+  onRetry?: () => void;
   fetchNextPage: () => void;
   emptyState: React.ReactNode;
   selectMode?: boolean;
@@ -25,6 +27,8 @@ export default function InfiniteBookmarkList({
   hasNextPage,
   isFetchingNextPage,
   isLoading,
+  isError = false,
+  onRetry,
   fetchNextPage,
   emptyState,
   selectMode = false,
@@ -52,6 +56,27 @@ export default function InfiniteBookmarkList({
 
   if (isLoading) {
     return <SiftLoader label="Loading your bookmarks…" />;
+  }
+
+  if (isError) {
+    return (
+      <div className="text-center py-16">
+        <p className="text-sm font-medium text-foreground mb-1">
+          Couldn&apos;t load your bookmarks
+        </p>
+        <p className="text-sm text-muted-foreground mb-4">
+          Check your connection and try again.
+        </p>
+        {onRetry && (
+          <button
+            onClick={onRetry}
+            className="px-4 py-2 text-sm border border-border rounded-lg text-foreground hover:bg-muted transition-colors"
+          >
+            Retry
+          </button>
+        )}
+      </div>
+    );
   }
 
   const bookmarks = data?.pages.flatMap((page) => page.items) ?? [];

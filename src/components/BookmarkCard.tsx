@@ -123,38 +123,57 @@ function InlineNote({
     };
   }, []);
 
-  function scheduleSave(next: string) {
+  function scheduleAutosave(next: string) {
     clearTimeout(saveTimeoutRef.current);
     saveTimeoutRef.current = setTimeout(() => {
       const trimmed = next.trim();
-      if (trimmed === lastSavedRef.current.trim()) return; // nothing changed
-      if (trimmed.length === 0) return; // backend rejects empty content — leave it as a draft rather than error
+      if (trimmed === lastSavedRef.current.trim()) return;
+      if (trimmed.length === 0) return;
       upsertNote.mutate(
         { bookmarkId, content: trimmed },
         {
           onSuccess: () => {
             lastSavedRef.current = trimmed;
-            setJustSaved(true);
-            clearTimeout(savedTimeoutRef.current);
-            savedTimeoutRef.current = setTimeout(
-              () => setJustSaved(false),
-              1500,
-            );
+            flashSaved();
           },
         },
       );
     }, 800);
   }
 
-  function handleChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
-    setValue(e.target.value);
-    scheduleSave(e.target.value);
+  function flashSaved() {
+    setJustSaved(true);
+    clearTimeout(savedTimeoutRef.current);
+    savedTimeoutRef.current = setTimeout(() => setJustSaved(false), 1500);
   }
 
-  function handleBlur() {
-    // Collapse only if there's nothing unsaved in flight and no content —
-    // an in-progress note shouldn't vanish just because focus moved.
-    if (value.trim().length === 0) onCollapse();
+  function handleChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    setValue(e.target.value);
+    scheduleAutosave(e.target.value);
+  }
+
+  function handleSaveAndClose() {
+    const trimmed = value.trim();
+    clearTimeout(saveTimeoutRef.current); // supersede any pending autosave
+
+    if (trimmed.length === 0) {
+      onCollapse();
+      return;
+    }
+    if (trimmed === lastSavedRef.current.trim()) {
+      onCollapse(); // nothing changed since last autosave — just close
+      return;
+    }
+
+    upsertNote.mutate(
+      { bookmarkId, content: trimmed },
+      {
+        onSuccess: () => {
+          lastSavedRef.current = trimmed;
+          onCollapse();
+        },
+      },
+    );
   }
 
   return (
@@ -163,18 +182,16 @@ function InlineNote({
         ref={ref}
         value={value}
         onChange={handleChange}
-        onBlur={handleBlur}
         onKeyDown={(e) => {
-          if (e.key === "Escape") {
-            e.currentTarget.blur();
-            onCollapse();
-          }
+          if (e.key === "Escape") onCollapse();
+          if ((e.metaKey || e.ctrlKey) && e.key === "Enter")
+            handleSaveAndClose();
         }}
         placeholder="Why did you save this?"
         rows={2}
         className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none leading-relaxed"
       />
-      <div className="flex items-center justify-between mt-1">
+      <div className="flex items-center justify-between mt-1.5">
         <AnimatePresence mode="wait">
           {upsertNote.isPending ? (
             <motion.span
@@ -203,15 +220,21 @@ function InlineNote({
             <span />
           )}
         </AnimatePresence>
-        <button
-          onClick={() => {
-            if (value.trim().length === 0) onCollapse();
-            else ref.current?.blur();
-          }}
-          className="text-[11px] text-muted-foreground hover:text-foreground transition-colors"
-        >
-          Done
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onCollapse}
+            className="text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSaveAndClose}
+            disabled={upsertNote.isPending}
+            className="px-2.5 py-1 text-[11px] font-medium bg-primary text-primary-foreground rounded-md hover:opacity-90 transition-opacity disabled:opacity-60"
+          >
+            Save
+          </button>
+        </div>
       </div>
     </div>
   );

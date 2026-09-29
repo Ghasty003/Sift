@@ -1,7 +1,7 @@
 import { motion, AnimatePresence } from "motion/react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ApiCollection } from "../types/api";
-import { FolderIcon, TrashIcon, CheckCircleIcon, XIcon } from "../icons";
+import { FolderIcon, TrashIcon, XIcon } from "../icons";
 import { MOTION, prefersReducedMotion } from "../lib/motion";
 import { useBulkDelete, useBulkMove } from "../hooks/useBookmarks";
 import { useToast } from "./Toast";
@@ -22,15 +22,21 @@ export default function BulkActionBar({
   const bulkMove = useBulkMove();
   const toast = useToast();
   const reduceMotion = prefersReducedMotion();
+  const pendingDeleteTimeout = useRef<ReturnType<typeof setTimeout>>(null!);
 
   const count = selectedIds.length;
 
   function handleDelete() {
-    bulkDelete.mutate(selectedIds, {
-      onSuccess: () => {
-        toast.show(`Deleted ${count} bookmark${count !== 1 ? "s" : ""}`);
-        onClear();
-      },
+    const ids = [...selectedIds];
+    onClear(); // clear selection immediately so the bar disappears right away
+
+    pendingDeleteTimeout.current = setTimeout(() => {
+      bulkDelete.mutate(ids);
+    }, 4500);
+
+    toast.show(`Deleted ${ids.length} bookmark${ids.length !== 1 ? "s" : ""}`, {
+      actionLabel: "Undo",
+      onAction: () => clearTimeout(pendingDeleteTimeout.current),
     });
   }
 
@@ -57,7 +63,7 @@ export default function BulkActionBar({
           animate={{ opacity: 1, y: 0 }}
           exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 12 }}
           transition={MOTION.ui}
-          className="fixed bottom-5 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 bg-foreground text-background rounded-xl pl-4 pr-2 py-2 shadow-lg"
+          className="fixed bottom-20 lg:bottom-5 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 bg-foreground text-background rounded-xl pl-4 pr-2 py-2 shadow-lg"
         >
           <span className="text-sm font-medium">{count} selected</span>
           <div className="w-px h-4 bg-background/20" />
@@ -102,11 +108,10 @@ export default function BulkActionBar({
 
           <button
             onClick={handleDelete}
-            disabled={bulkDelete.isPending}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 text-sm rounded-lg text-red-300 hover:bg-background/10 transition-colors disabled:opacity-40"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 text-sm rounded-lg text-red-300 hover:bg-background/10 transition-colors"
           >
             <TrashIcon size={14} />
-            {bulkDelete.isPending ? "Deleting…" : "Delete"}
+            Delete
           </button>
 
           <div className="w-px h-4 bg-background/20" />
