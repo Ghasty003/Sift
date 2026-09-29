@@ -56,6 +56,7 @@ export interface CurrentUser {
   email: string;
   fullName: string;
   createdAt: string;
+  hasPassword: boolean;
 }
 
 export interface AuthResponse {

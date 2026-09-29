@@ -28,3 +28,12 @@ export async function registerRequest(
 export async function logoutRequest(): Promise<void> {
   await apiClient.post("/auth/logout");
 }
+
+export async function googleLoginRequest(
+  idToken: string,
+): Promise<AuthResponse> {
+  const { data } = await apiClient.post<AuthResponse>("/auth/google", {
+    idToken,
+  });
+  return data;
+}

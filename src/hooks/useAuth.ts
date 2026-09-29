@@ -1,5 +1,10 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { loginRequest, logoutRequest, registerRequest } from "../api/auth";
+import {
+  googleLoginRequest,
+  loginRequest,
+  logoutRequest,
+  registerRequest,
+} from "../api/auth";
 import { useAuthStore } from "../store/authStore";
 import { currentUserKey } from "./useCurrentUser";
 import type { AuthCredentials, RegisterCredentials } from "../types/api";
@@ -43,6 +48,19 @@ export function useLogout() {
       // useful to do than log out locally anyway.
       logout();
       queryClient.clear();
+    },
+  });
+}
+
+export function useGoogleLogin() {
+  const setToken = useAuthStore((s) => s.setToken);
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (idToken: string) => googleLoginRequest(idToken),
+    onSuccess: (data) => {
+      setToken(data.accessToken);
+      queryClient.setQueryData(currentUserKey, data.user);
     },
   });
 }

@@ -192,64 +192,66 @@ function AccountSection() {
         </button>
       </div>
 
-      <div className="border-t border-border pt-6">
-        <h3 className="text-sm font-semibold text-foreground mb-1">
-          Change Password
-        </h3>
-        <p className="text-sm text-muted-foreground mb-4">
-          Update your password to keep your account secure.
-        </p>
-        <div className="space-y-3 max-w-sm">
-          <input
-            type="password"
-            placeholder="Current password"
-            value={currentPassword}
-            onChange={(e) => setCurrentPassword(e.target.value)}
-            className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
-          />
-          <input
-            type="password"
-            placeholder="New password"
-            value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
-            className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
-          />
-          <input
-            type="password"
-            placeholder="Confirm new password"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
-          />
-          {passwordMismatch && (
-            <p className="text-sm text-red-600">Passwords don't match.</p>
-          )}
-          {changePassword.isError && (
-            <p className="text-sm text-red-600">
-              {getErrorMessage(
-                changePassword.error,
-                "Couldn't change password.",
-              )}
-            </p>
-          )}
-          {passwordSuccess && (
-            <p className="text-sm text-primary">✓ Password updated.</p>
-          )}
-          <button
-            onClick={handleChangePassword}
-            disabled={
-              changePassword.isPending ||
-              !currentPassword ||
-              !newPassword ||
-              !confirmPassword ||
-              passwordMismatch
-            }
-            className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {changePassword.isPending ? "Updating…" : "Update password"}
-          </button>
+      {user?.hasPassword && (
+        <div className="border-t border-border pt-6">
+          <h3 className="text-sm font-semibold text-foreground mb-1">
+            Change Password
+          </h3>
+          <p className="text-sm text-muted-foreground mb-4">
+            Update your password to keep your account secure.
+          </p>
+          <div className="space-y-3 max-w-sm">
+            <input
+              type="password"
+              placeholder="Current password"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
+            />
+            <input
+              type="password"
+              placeholder="New password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
+            />
+            <input
+              type="password"
+              placeholder="Confirm new password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
+            />
+            {passwordMismatch && (
+              <p className="text-sm text-red-600">Passwords don't match.</p>
+            )}
+            {changePassword.isError && (
+              <p className="text-sm text-red-600">
+                {getErrorMessage(
+                  changePassword.error,
+                  "Couldn't change password.",
+                )}
+              </p>
+            )}
+            {passwordSuccess && (
+              <p className="text-sm text-primary">✓ Password updated.</p>
+            )}
+            <button
+              onClick={handleChangePassword}
+              disabled={
+                changePassword.isPending ||
+                !currentPassword ||
+                !newPassword ||
+                !confirmPassword ||
+                passwordMismatch
+              }
+              className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {changePassword.isPending ? "Updating…" : "Update password"}
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="border-t border-border pt-6">
         <h3 className="text-sm font-semibold text-red-600 mb-1">
