@@ -1,9 +1,11 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
+  forgotPasswordRequest,
   googleLoginRequest,
   loginRequest,
   logoutRequest,
   registerRequest,
+  resetPasswordRequest,
 } from "../api/auth";
 import { useAuthStore } from "../store/authStore";
 import { currentUserKey } from "./useCurrentUser";
@@ -62,5 +64,23 @@ export function useGoogleLogin() {
       setToken(data.accessToken);
       queryClient.setQueryData(currentUserKey, data.user);
     },
+  });
+}
+
+export function useForgotPassword() {
+  return useMutation({
+    mutationFn: (email: string) => forgotPasswordRequest(email),
+  });
+}
+
+export function useResetPassword() {
+  return useMutation({
+    mutationFn: ({
+      token,
+      newPassword,
+    }: {
+      token: string;
+      newPassword: string;
+    }) => resetPasswordRequest(token, newPassword),
   });
 }

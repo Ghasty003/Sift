@@ -253,15 +253,6 @@ export default function Signup() {
               onCredential={handleGoogleCredential}
               disabled={googleLogin.isPending}
             />
-            <button
-              type="button"
-              disabled
-              title="Coming soon"
-              className="w-full flex items-center justify-center gap-2.5 px-4 py-2.5 bg-foreground text-background rounded-lg text-sm font-medium opacity-50 cursor-not-allowed"
-            >
-              <XLogoIcon />
-              Continue with X
-            </button>
           </div>
 
           <div className="flex items-center gap-3 mb-6">

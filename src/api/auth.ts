@@ -37,3 +37,14 @@ export async function googleLoginRequest(
   });
   return data;
 }
+
+export async function forgotPasswordRequest(email: string): Promise<void> {
+  await apiClient.post("/auth/forgot-password", { email });
+}
+
+export async function resetPasswordRequest(
+  token: string,
+  newPassword: string,
+): Promise<void> {
+  await apiClient.post("/auth/reset-password", { token, newPassword });
+}
