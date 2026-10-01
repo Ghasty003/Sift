@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { motion, AnimatePresence } from "motion/react";
 import { ApiBookmark, ApiCollection } from "../types/api";
 import {
   StarIcon,
@@ -11,6 +12,8 @@ import {
   TrashIcon,
   XIcon,
   CheckIcon,
+  MoreHorizontalIcon,
+  RepostIcon,
 } from "../icons";
 import {
   formatDate,
@@ -28,26 +31,40 @@ import {
   useRemoveTagFromBookmark,
 } from "../hooks/useBookmarks";
 import { useTags, useCreateTag } from "../hooks/useTags";
+import { useToast } from "./Toast";
+import { MOTION, prefersReducedMotion } from "../lib/motion";
 
 interface BookmarkCardProps {
   bookmark: ApiBookmark;
   collections: ApiCollection[];
   compact?: boolean;
-  /** @deprecated kept so not-yet-migrated pages can still pass it without a
-   * TS error; BookmarkCard no longer reads from it — all actions go through
-   * the mutation hooks directly. Safe to drop once every caller is migrated. */
-  dispatch?: unknown;
 }
 
 function Avatar({
   displayName,
   username,
+  avatarUrl,
   size = 32,
 }: {
   displayName: string;
   username: string;
+  avatarUrl?: string | null;
   size?: number;
 }) {
+  const [imgFailed, setImgFailed] = useState(false);
+
+  if (avatarUrl && !imgFailed) {
+    return (
+      <img
+        src={avatarUrl}
+        alt={displayName}
+        onError={() => setImgFailed(true)}
+        className="rounded-full object-cover shrink-0"
+        style={{ width: size, height: size }}
+      />
+    );
+  }
+
   const bg = getAvatarColor(username);
   const initials = getInitials(displayName);
   return (
@@ -92,57 +109,147 @@ function Tag({
   );
 }
 
-function NoteModal({
+/* ---------- inline note editor ---------- */
+
+function InlineNote({
+  bookmarkId,
   initial,
-  onSave,
-  onClose,
-  saving,
+  onCollapse,
 }: {
+  bookmarkId: string;
   initial: string;
-  onSave: (note: string) => void;
-  onClose: () => void;
-  saving: boolean;
+  onCollapse: () => void;
 }) {
   const [value, setValue] = useState(initial);
+  const [justSaved, setJustSaved] = useState(false);
+  const upsertNote = useUpsertBookmarkNote();
   const ref = useRef<HTMLTextAreaElement>(null);
+  const savedTimeoutRef = useRef<ReturnType<typeof setTimeout>>(null!);
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout>>(null!);
+  const lastSavedRef = useRef(initial);
 
   useEffect(() => {
     ref.current?.focus();
+    ref.current?.setSelectionRange(
+      ref.current.value.length,
+      ref.current.value.length,
+    );
+    return () => {
+      clearTimeout(savedTimeoutRef.current);
+      clearTimeout(saveTimeoutRef.current);
+    };
   }, []);
 
+  function scheduleAutosave(next: string) {
+    clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = setTimeout(() => {
+      const trimmed = next.trim();
+      if (trimmed === lastSavedRef.current.trim()) return;
+      if (trimmed.length === 0) return;
+      upsertNote.mutate(
+        { bookmarkId, content: trimmed },
+        {
+          onSuccess: () => {
+            lastSavedRef.current = trimmed;
+            flashSaved();
+          },
+        },
+      );
+    }, 800);
+  }
+
+  function flashSaved() {
+    setJustSaved(true);
+    clearTimeout(savedTimeoutRef.current);
+    savedTimeoutRef.current = setTimeout(() => setJustSaved(false), 1500);
+  }
+
+  function handleChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    setValue(e.target.value);
+    scheduleAutosave(e.target.value);
+  }
+
+  function handleSaveAndClose() {
+    const trimmed = value.trim();
+    clearTimeout(saveTimeoutRef.current); // supersede any pending autosave
+
+    if (trimmed.length === 0) {
+      onCollapse();
+      return;
+    }
+    if (trimmed === lastSavedRef.current.trim()) {
+      onCollapse(); // nothing changed since last autosave — just close
+      return;
+    }
+
+    upsertNote.mutate(
+      { bookmarkId, content: trimmed },
+      {
+        onSuccess: () => {
+          lastSavedRef.current = trimmed;
+          onCollapse();
+        },
+      },
+    );
+  }
+
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/25 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <div
-        className="bg-card rounded-xl border border-border shadow-xl w-full max-w-md mx-4 p-6"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h3 className="text-sm font-semibold text-foreground mb-3">
-          Personal Note
-        </h3>
-        <textarea
-          ref={ref}
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          placeholder="Add your thoughts, context, or review notes..."
-          className="w-full border border-border rounded-lg p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring bg-background placeholder:text-muted-foreground"
-          rows={5}
-        />
-        <div className="flex justify-end gap-2 mt-4">
+    <div className="rounded-lg bg-secondary/40 p-2.5">
+      <textarea
+        ref={ref}
+        value={value}
+        onChange={handleChange}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") onCollapse();
+          if ((e.metaKey || e.ctrlKey) && e.key === "Enter")
+            handleSaveAndClose();
+        }}
+        placeholder="Why did you save this?"
+        rows={2}
+        className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none leading-relaxed"
+      />
+      <div className="flex items-center justify-between mt-1.5">
+        <AnimatePresence mode="wait">
+          {upsertNote.isPending ? (
+            <motion.span
+              key="saving"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={MOTION.micro}
+              className="text-[11px] text-muted-foreground"
+            >
+              Saving…
+            </motion.span>
+          ) : justSaved ? (
+            <motion.span
+              key="saved"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={MOTION.micro}
+              className="flex items-center gap-1 text-[11px] text-primary"
+            >
+              <CheckIcon size={11} />
+              Saved
+            </motion.span>
+          ) : (
+            <span />
+          )}
+        </AnimatePresence>
+        <div className="flex items-center gap-2">
           <button
-            onClick={onClose}
-            className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            onClick={onCollapse}
+            className="text-[11px] text-muted-foreground hover:text-foreground transition-colors"
           >
             Cancel
           </button>
           <button
-            onClick={() => onSave(value)}
-            disabled={saving}
-            className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-60"
+            onClick={handleSaveAndClose}
+            disabled={upsertNote.isPending}
+            className="px-2.5 py-1 text-[11px] font-medium bg-primary text-primary-foreground rounded-md hover:opacity-90 transition-opacity disabled:opacity-60"
           >
-            {saving ? "Saving…" : "Save Note"}
+            Save
           </button>
         </div>
       </div>
@@ -167,26 +274,31 @@ function MoveMenu({
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        onClose();
-      }
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    }
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
     }
     document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("keydown", handleKey);
+    };
   }, [onClose]);
 
   return (
-    <div
+    <motion.div
       ref={ref}
-      className="absolute bottom-full left-0 mb-2 z-30 bg-card border border-border rounded-lg shadow-lg py-1 min-w-52"
+      initial={{ opacity: 0, scale: 0.96, y: 4 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.96, y: 4 }}
+      transition={MOTION.ui}
+      className="absolute bottom-full right-0 mb-2 z-30 bg-card border border-border rounded-lg shadow-lg py-1 min-w-52 origin-bottom-right"
     >
       <p className="px-3 py-1.5 text-xs text-muted-foreground font-medium uppercase tracking-wider">
         Move to
       </p>
-
-      {/* No API endpoint yet to unset a bookmark's collection individually —
-          only add-to-collection and delete-whole-collection exist. Disabled
-          until that endpoint exists. */}
       <button
         disabled
         title="Not supported yet — removing a bookmark from a collection currently requires deleting the whole collection"
@@ -195,7 +307,6 @@ function MoveMenu({
         <span className="w-3.25" />
         Inbox
       </button>
-
       {collections.map((c) => (
         <button
           key={c.id}
@@ -215,7 +326,7 @@ function MoveMenu({
           {c.name}
         </button>
       ))}
-    </div>
+    </motion.div>
   );
 }
 
@@ -236,8 +347,6 @@ function TagInput({
   }, []);
 
   function submit() {
-    // Backend stores plain tag names — strip a leading '#' if the user typed
-    // one out of habit; the '#' is purely a display convention (see <Tag>).
     const name = value.trim().replace(/^#/, "");
     if (name.length > 0) {
       onAdd(name);
@@ -246,7 +355,13 @@ function TagInput({
   }
 
   return (
-    <div className="flex items-center gap-1">
+    <motion.div
+      className="flex items-center gap-1"
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.9 }}
+      transition={MOTION.micro}
+    >
       <input
         ref={ref}
         value={value}
@@ -272,6 +387,101 @@ function TagInput({
       >
         <XIcon size={13} />
       </button>
+    </motion.div>
+  );
+}
+
+function MoreMenu({
+  onTag,
+  onMove,
+  onNote,
+  onOpen,
+  onDelete,
+  hasNote,
+}: {
+  onTag: () => void;
+  onMove: () => void;
+  onNote: () => void;
+  onOpen: () => void;
+  onDelete: () => void;
+  hasNote: boolean;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node))
+        setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  const items = [
+    { label: "Add tag", icon: <TagIcon size={13} />, onClick: onTag },
+    {
+      label: "Move to collection",
+      icon: <FolderIcon size={13} />,
+      onClick: onMove,
+    },
+    {
+      label: hasNote ? "Edit note" : "Add note",
+      icon: <EditIcon size={13} />,
+      onClick: onNote,
+    },
+    {
+      label: "Open on X",
+      icon: <ExternalLinkIcon size={13} />,
+      onClick: onOpen,
+    },
+  ];
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        title="More actions"
+        className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+      >
+        <MoreHorizontalIcon size={15} />
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.96, y: 4 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.96, y: 4 }}
+            transition={MOTION.ui}
+            className="absolute bottom-full right-0 mb-2 z-30 bg-card border border-border rounded-lg shadow-lg py-1 min-w-44 origin-bottom-right"
+          >
+            {items.map((item) => (
+              <button
+                key={item.label}
+                onClick={() => {
+                  item.onClick();
+                  setOpen(false);
+                }}
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-left text-foreground hover:bg-muted transition-colors"
+              >
+                <span className="text-muted-foreground">{item.icon}</span>
+                {item.label}
+              </button>
+            ))}
+            <div className="my-1 border-t border-border" />
+            <button
+              onClick={() => {
+                onDelete();
+                setOpen(false);
+              }}
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-left text-red-600 hover:bg-red-50 transition-colors"
+            >
+              <TrashIcon size={13} />
+              Delete
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -279,27 +489,26 @@ function TagInput({
 export default function BookmarkCard({
   bookmark,
   collections,
-  compact = false,
 }: BookmarkCardProps) {
-  const [showNoteModal, setShowNoteModal] = useState(false);
   const [showMoveMenu, setShowMoveMenu] = useState(false);
   const [showTagInput, setShowTagInput] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [editingNote, setEditingNote] = useState(false);
+  const [isRemoving, setIsRemoving] = useState(false);
 
   const toggleFavorite = useToggleFavorite();
   const toggleRead = useToggleRead();
   const deleteBookmark = useDeleteBookmark();
   const addToCollection = useAddBookmarkToCollection();
-  const upsertNote = useUpsertBookmarkNote();
   const addTagToBookmark = useAddTagToBookmark();
   const removeTagFromBookmark = useRemoveTagFromBookmark();
-
   const { data: allTags } = useTags();
   const createTag = useCreateTag();
+  const toast = useToast();
 
   const { tweet } = bookmark;
   const collectionName = bookmark.collection?.name ?? "Inbox";
   const noteContent = bookmark.note?.content ?? "";
+  const reduceMotion = prefersReducedMotion();
 
   async function handleAddTag(name: string) {
     const existing = allTags?.find(
@@ -312,236 +521,286 @@ export default function BookmarkCard({
     setShowTagInput(false);
   }
 
+  function handleDelete() {
+    setIsRemoving(true);
+    const timeout = setTimeout(() => {
+      deleteBookmark.mutate(bookmark.id);
+    }, 4500);
+
+    toast.show(`Removed "${tweet.authorName}"'s post`, {
+      actionLabel: "Undo",
+      onAction: () => {
+        clearTimeout(timeout);
+        setIsRemoving(false);
+      },
+    });
+  }
+
   return (
-    <article className="bg-card border border-border rounded-xl overflow-visible group hover:border-foreground/20 transition-colors">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-3 px-5 pt-5 pb-4">
-        <div className="flex items-start gap-3 min-w-0">
-          <Avatar
-            displayName={tweet.authorName}
-            username={tweet.authorUsername}
-            size={34}
-          />
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-foreground leading-tight">
-              {tweet.authorName}
-            </p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              @{tweet.authorUsername}
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          {!bookmark.isRead && (
-            <span
-              className="w-1.5 h-1.5 rounded-full bg-primary shrink-0"
-              title="Unread"
-            />
+    <AnimatePresence mode="popLayout">
+      {!isRemoving && (
+        <motion.article
+          layout
+          initial={reduceMotion ? undefined : { opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={
+            reduceMotion
+              ? { opacity: 0 }
+              : {
+                  opacity: 0,
+                  height: 0,
+                  marginBottom: 0,
+                  transition: MOTION.layout,
+                }
+          }
+          transition={MOTION.ui}
+          className="group bg-card border border-border rounded-xl overflow-visible hover:border-foreground/20 hover:shadow-sm transition-[border-color,box-shadow] duration-150"
+        >
+          {tweet.repostedByName && (
+            <div className="flex items-center gap-1.5 px-5 pt-4 text-xs text-muted-foreground">
+              <RepostIcon size={12} />
+              <span>
+                Reposted by{" "}
+                {tweet.repostedByUsername ? (
+                  <span className="text-foreground font-medium">
+                    {tweet.repostedByName}
+                  </span>
+                ) : (
+                  tweet.repostedByName
+                )}
+              </span>
+            </div>
           )}
-          <time className="text-xs text-muted-foreground whitespace-nowrap">
-            {formatDate(tweet.createdAt)}
-          </time>
-        </div>
-      </div>
 
-      {/* Tweet content */}
-      <div className="mx-5 px-4 py-3 bg-secondary/60 border-l-2 border-primary/30 rounded-r-lg text-sm text-foreground leading-relaxed">
-        {tweet.text}
-      </div>
-
-      {/* Metadata */}
-      <div className="px-5 pt-3 space-y-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <FolderIcon size={12} />
-            <span>{collectionName}</span>
+          {/* Header */}
+          <div
+            className={`flex items-start justify-between gap-3 px-5 pb-4 ${tweet.repostedByName ? "pt-3" : "pt-5"}`}
+          >
+            <div className="flex items-start gap-3 min-w-0">
+              <Avatar
+                displayName={tweet.authorName}
+                username={tweet.authorUsername}
+                avatarUrl={tweet.authorAvatarUrl}
+                size={34}
+              />
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-foreground leading-tight">
+                  {tweet.authorName}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  @{tweet.authorUsername}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {!bookmark.isRead && (
+                <span
+                  className="w-1.5 h-1.5 rounded-full bg-primary shrink-0"
+                  title="Unread"
+                />
+              )}
+              <time className="text-xs text-muted-foreground whitespace-nowrap">
+                {formatDate(tweet.createdAt)}
+              </time>
+            </div>
           </div>
-          <span className="text-xs text-muted-foreground">
-            {formatRelative(bookmark.savedAt)}
-          </span>
-        </div>
 
-        {(bookmark.tags.length > 0 || showTagInput) && (
-          <div className="flex flex-wrap items-center gap-1.5">
-            {bookmark.tags.map((tag) => (
-              <Tag
-                key={tag.id}
-                label={`#${tag.name}`}
-                removing={
-                  removeTagFromBookmark.isPending &&
-                  removeTagFromBookmark.variables?.tagId === tag.id
-                }
-                onRemove={() =>
-                  removeTagFromBookmark.mutate({
-                    bookmarkId: bookmark.id,
-                    tagId: tag.id,
-                  })
-                }
-              />
-            ))}
-            {showTagInput && (
-              <TagInput
-                onAdd={handleAddTag}
-                onClose={() => setShowTagInput(false)}
-                adding={createTag.isPending || addTagToBookmark.isPending}
-              />
+          {/* Tweet content */}
+          {tweet.isReply && tweet.replyToUsername && (
+            <p className="mx-5 mb-1.5 text-xs text-muted-foreground">
+              Replying to{" "}
+              <span className="text-primary">@{tweet.replyToUsername}</span>
+            </p>
+          )}
+
+          <div className="mx-5 px-4 py-3 bg-secondary/60 border-l-2 border-primary/30 rounded-r-lg text-sm text-foreground leading-relaxed">
+            {tweet.text}
+          </div>
+
+          {tweet.quotedTweet && (
+            <div className="mx-5 mt-2 p-3 border border-border rounded-lg">
+              <div className="flex items-center gap-2 mb-1.5">
+                <Avatar
+                  displayName={tweet.quotedTweet.authorName}
+                  username={tweet.quotedTweet.authorUsername}
+                  avatarUrl={tweet.quotedTweet.authorAvatarUrl}
+                  size={20}
+                />
+                <span className="text-xs font-medium text-foreground">
+                  {tweet.quotedTweet.authorName}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  @{tweet.quotedTweet.authorUsername}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3">
+                {tweet.quotedTweet.text}
+              </p>
+            </div>
+          )}
+
+          {/* Metadata */}
+          <div className="px-5 pt-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <FolderIcon size={12} />
+                <span>{collectionName}</span>
+              </div>
+              <span className="text-xs text-muted-foreground">
+                {formatRelative(bookmark.savedAt)}
+              </span>
+            </div>
+
+            {(bookmark.tags.length > 0 || showTagInput) && (
+              <div className="flex flex-wrap items-center gap-1.5">
+                <AnimatePresence mode="popLayout">
+                  {bookmark.tags.map((tag) => (
+                    <motion.div
+                      key={tag.id}
+                      layout
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.8 }}
+                      transition={MOTION.micro}
+                    >
+                      <Tag
+                        label={`#${tag.name}`}
+                        removing={
+                          removeTagFromBookmark.isPending &&
+                          removeTagFromBookmark.variables?.tagId === tag.id
+                        }
+                        onRemove={() =>
+                          removeTagFromBookmark.mutate({
+                            bookmarkId: bookmark.id,
+                            tagId: tag.id,
+                          })
+                        }
+                      />
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+                <AnimatePresence>
+                  {showTagInput && (
+                    <TagInput
+                      onAdd={handleAddTag}
+                      onClose={() => setShowTagInput(false)}
+                      adding={createTag.isPending || addTagToBookmark.isPending}
+                    />
+                  )}
+                </AnimatePresence>
+              </div>
             )}
-          </div>
-        )}
 
-        {noteContent && (
-          <div className="flex gap-2 text-xs text-muted-foreground italic">
-            <EditIcon size={12} className="shrink-0 mt-0.5 not-italic" />
-            <span className="line-clamp-2">{noteContent}</span>
-          </div>
-        )}
-      </div>
-
-      {/* Action bar */}
-      <div className="flex items-center justify-between px-5 py-3 mt-3 border-t border-border/60">
-        <div className="flex items-center gap-0.5">
-          <ActionButton
-            onClick={() => toggleFavorite.mutate(bookmark.id)}
-            disabled={toggleFavorite.isPending}
-            active={bookmark.isFavorite}
-            activeColor="#D97706"
-            label={bookmark.isFavorite ? "Unfavorite" : "Favorite"}
-          >
-            <StarIcon size={15} filled={bookmark.isFavorite} />
-          </ActionButton>
-
-          <ActionButton
-            onClick={() => toggleRead.mutate(bookmark.id)}
-            disabled={toggleRead.isPending}
-            label={bookmark.isRead ? "Mark unread" : "Mark read"}
-          >
-            {bookmark.isRead ? <EyeIcon size={15} /> : <EyeOffIcon size={15} />}
-          </ActionButton>
-        </div>
-
-        <div className="flex items-center gap-0.5">
-          <ActionButton
-            onClick={() => setShowTagInput((v) => !v)}
-            label="Add tag"
-          >
-            <TagIcon size={15} />
-          </ActionButton>
-
-          <div className="relative">
-            <ActionButton
-              onClick={() => setShowMoveMenu((v) => !v)}
-              label="Move to collection"
-            >
-              <FolderIcon size={15} />
-            </ActionButton>
-            {showMoveMenu && (
-              <MoveMenu
-                currentCollectionId={bookmark.collection?.id ?? null}
-                collections={collections}
-                moving={addToCollection.isPending}
-                onMove={(id) => {
-                  addToCollection.mutate({
-                    bookmarkId: bookmark.id,
-                    collectionId: id,
-                  });
-                  setShowMoveMenu(false);
-                }}
-                onClose={() => setShowMoveMenu(false)}
-              />
-            )}
+            {/* Note — inline, attached to the bookmark, never a modal */}
+            <AnimatePresence mode="wait" initial={false}>
+              {editingNote ? (
+                <motion.div
+                  key="editing"
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={MOTION.ui}
+                  className="overflow-hidden"
+                >
+                  <InlineNote
+                    bookmarkId={bookmark.id}
+                    initial={noteContent}
+                    onCollapse={() => setEditingNote(false)}
+                  />
+                </motion.div>
+              ) : noteContent ? (
+                <motion.button
+                  key="preview"
+                  onClick={() => setEditingNote(true)}
+                  className="flex gap-2 text-xs text-muted-foreground italic w-full text-left hover:text-foreground transition-colors"
+                >
+                  <EditIcon size={12} className="shrink-0 mt-0.5 not-italic" />
+                  <span className="line-clamp-2">{noteContent}</span>
+                </motion.button>
+              ) : null}
+            </AnimatePresence>
           </div>
 
-          <ActionButton
-            onClick={() => setShowNoteModal(true)}
-            label="Edit note"
-            active={!!noteContent}
-          >
-            <EditIcon size={15} />
-          </ActionButton>
-
-          <ActionButton
-            onClick={() => window.open(tweet.url, "_blank")}
-            label="Open on X"
-          >
-            <ExternalLinkIcon size={15} />
-          </ActionButton>
-
-          {confirmDelete ? (
-            <div className="flex items-center gap-1 ml-1">
-              <span className="text-xs text-muted-foreground">Delete?</span>
+          {/* Action bar — favorite/read always visible; everything else lives
+              behind the "more" menu, revealed on hover/focus so the resting
+              card stays calm. */}
+          <div className="flex items-center justify-between px-5 py-3 mt-3 border-t border-border/60">
+            <div className="flex items-center gap-0.5">
               <button
-                onClick={() => deleteBookmark.mutate(bookmark.id)}
-                disabled={deleteBookmark.isPending}
-                className="text-xs text-red-600 font-medium hover:opacity-70 px-1.5 py-0.5 rounded border border-red-200 bg-red-50 disabled:opacity-60"
+                onClick={() => toggleFavorite.mutate(bookmark.id)}
+                disabled={toggleFavorite.isPending}
+                title={bookmark.isFavorite ? "Unfavorite" : "Favorite"}
+                className="p-1.5 rounded-md hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-wait"
               >
-                {deleteBookmark.isPending ? "…" : "Yes"}
+                <motion.span
+                  className="block"
+                  animate={
+                    reduceMotion
+                      ? undefined
+                      : bookmark.isFavorite
+                        ? { scale: [1, 1.3, 1] }
+                        : { scale: 1 }
+                  }
+                  transition={MOTION.micro}
+                >
+                  <StarIcon
+                    size={15}
+                    filled={bookmark.isFavorite}
+                    className={
+                      bookmark.isFavorite
+                        ? "text-amber-500"
+                        : "text-muted-foreground"
+                    }
+                  />
+                </motion.span>
               </button>
+
               <button
-                onClick={() => setConfirmDelete(false)}
-                className="text-xs text-muted-foreground hover:text-foreground px-1.5 py-0.5"
+                onClick={() => toggleRead.mutate(bookmark.id)}
+                disabled={toggleRead.isPending}
+                title={bookmark.isRead ? "Mark unread" : "Mark read"}
+                className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-wait"
               >
-                No
+                {bookmark.isRead ? (
+                  <EyeIcon size={15} />
+                ) : (
+                  <EyeOffIcon size={15} />
+                )}
               </button>
             </div>
-          ) : (
-            <ActionButton
-              onClick={() => setConfirmDelete(true)}
-              label="Delete"
-              className="hover:text-red-500"
-            >
-              <TrashIcon size={15} />
-            </ActionButton>
-          )}
-        </div>
-      </div>
 
-      {showNoteModal && (
-        <NoteModal
-          initial={noteContent}
-          saving={upsertNote.isPending}
-          onSave={(note) => {
-            upsertNote.mutate(
-              { bookmarkId: bookmark.id, content: note },
-              { onSuccess: () => setShowNoteModal(false) },
-            );
-          }}
-          onClose={() => setShowNoteModal(false)}
-        />
+            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-150">
+              <div className="relative">
+                <MoreMenu
+                  hasNote={!!noteContent}
+                  onTag={() => setShowTagInput(true)}
+                  onMove={() => setShowMoveMenu(true)}
+                  onNote={() => setEditingNote(true)}
+                  onOpen={() => window.open(tweet.url, "_blank")}
+                  onDelete={handleDelete}
+                />
+                <AnimatePresence>
+                  {showMoveMenu && (
+                    <MoveMenu
+                      currentCollectionId={bookmark.collection?.id ?? null}
+                      collections={collections}
+                      moving={addToCollection.isPending}
+                      onMove={(id) => {
+                        addToCollection.mutate({
+                          bookmarkId: bookmark.id,
+                          collectionId: id,
+                        });
+                        setShowMoveMenu(false);
+                      }}
+                      onClose={() => setShowMoveMenu(false)}
+                    />
+                  )}
+                </AnimatePresence>
+              </div>
+            </div>
+          </div>
+        </motion.article>
       )}
-    </article>
-  );
-}
-
-function ActionButton({
-  children,
-  onClick,
-  label,
-  active,
-  activeColor,
-  className = "",
-  disabled = false,
-}: {
-  children: React.ReactNode;
-  onClick: () => void;
-  label: string;
-  active?: boolean;
-  activeColor?: string;
-  className?: string;
-  disabled?: boolean;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      title={label}
-      disabled={disabled}
-      className={`p-1.5 rounded-md transition-colors disabled:opacity-50 disabled:cursor-wait ${
-        active
-          ? "text-amber-500"
-          : "text-muted-foreground hover:text-foreground hover:bg-muted"
-      } ${className}`}
-      style={active && activeColor ? { color: activeColor } : undefined}
-    >
-      {children}
-    </button>
+    </AnimatePresence>
   );
 }

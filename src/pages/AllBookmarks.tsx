@@ -3,6 +3,8 @@ import { ApiCollection, ApiTag } from "../types/api";
 import { BookmarkIcon, XIcon } from "../icons";
 import { useAllBookmarksList } from "../hooks/useBookmarks";
 import InfiniteBookmarkList from "../components/InfiniteBookmarkList";
+import { useSearchParams } from "react-router-dom";
+import { useDebouncedValue } from "../hooks/useDebouncedValue";
 
 interface AllBookmarksProps {
   collections: ApiCollection[];
@@ -13,7 +15,13 @@ export default function AllBookmarks({
   collections,
   allTags,
 }: AllBookmarksProps) {
-  const [search, setSearch] = useState("");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const search = searchParams.get("q") ?? "";
+  function setSearch(value: string) {
+    setSearchParams(value ? { q: value } : {}, { replace: true });
+  }
+  const debouncedSearch = useDebouncedValue(search.trim(), 250);
+
   const [filterCollection, setFilterCollection] = useState(""); // '' | 'inbox' | collection id
   const [filterTag, setFilterTag] = useState("");
   const [filterRead, setFilterRead] = useState<"all" | "read" | "unread">(
@@ -27,7 +35,7 @@ export default function AllBookmarks({
       tagId: filterTag || undefined,
       read: filterRead === "all" ? undefined : filterRead === "read",
       favoriteOnly: filterFavorite,
-      search: search.trim() || undefined,
+      search: debouncedSearch || undefined,
     });
 
   const activeFilters = [

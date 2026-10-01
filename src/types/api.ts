@@ -3,8 +3,14 @@ export interface ApiTweet {
   url: string;
   authorUsername: string;
   authorName: string;
+  authorAvatarUrl: string | null;
   text: string;
   createdAt: string;
+  isReply: boolean;
+  replyToUsername: string | null;
+  repostedByName: string | null;
+  repostedByUsername: string | null;
+  quotedTweet: ApiTweet | null;
 }
 
 export interface ApiTag {
@@ -56,6 +62,7 @@ export interface CurrentUser {
   email: string;
   fullName: string;
   createdAt: string;
+  hasPassword: boolean;
 }
 
 export interface AuthResponse {

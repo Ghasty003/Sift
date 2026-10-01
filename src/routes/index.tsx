@@ -28,6 +28,8 @@ import Landing from "../pages/Landing";
 
 import { useCollections } from "../hooks/useCollections";
 import { useTags } from "../hooks/useTags";
+import ForgotPassword from "@/pages/ForgotPassword";
+import ResetPassword from "@/pages/ResetPassword";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -202,6 +204,8 @@ export const router = createBrowserRouter([
   { path: "/", element: <LandingRoute /> },
   { path: "/login", element: <Login /> },
   { path: "/signup", element: <Signup /> },
+  { path: "/forgot-password", element: <ForgotPassword /> },
+  { path: "/reset-password", element: <ResetPassword /> },
   {
     path: "/connect-extension",
     element: (
