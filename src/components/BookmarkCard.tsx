@@ -13,6 +13,7 @@ import {
   XIcon,
   CheckIcon,
   MoreHorizontalIcon,
+  RepostIcon,
 } from "../icons";
 import {
   formatDate,
@@ -42,12 +43,28 @@ interface BookmarkCardProps {
 function Avatar({
   displayName,
   username,
+  avatarUrl,
   size = 32,
 }: {
   displayName: string;
   username: string;
+  avatarUrl?: string | null;
   size?: number;
 }) {
+  const [imgFailed, setImgFailed] = useState(false);
+
+  if (avatarUrl && !imgFailed) {
+    return (
+      <img
+        src={avatarUrl}
+        alt={displayName}
+        onError={() => setImgFailed(true)}
+        className="rounded-full object-cover shrink-0"
+        style={{ width: size, height: size }}
+      />
+    );
+  }
+
   const bg = getAvatarColor(username);
   const initials = getInitials(displayName);
   return (
@@ -539,12 +556,31 @@ export default function BookmarkCard({
           transition={MOTION.ui}
           className="group bg-card border border-border rounded-xl overflow-visible hover:border-foreground/20 hover:shadow-sm transition-[border-color,box-shadow] duration-150"
         >
+          {tweet.repostedByName && (
+            <div className="flex items-center gap-1.5 px-5 pt-4 text-xs text-muted-foreground">
+              <RepostIcon size={12} />
+              <span>
+                Reposted by{" "}
+                {tweet.repostedByUsername ? (
+                  <span className="text-foreground font-medium">
+                    {tweet.repostedByName}
+                  </span>
+                ) : (
+                  tweet.repostedByName
+                )}
+              </span>
+            </div>
+          )}
+
           {/* Header */}
-          <div className="flex items-start justify-between gap-3 px-5 pt-5 pb-4">
+          <div
+            className={`flex items-start justify-between gap-3 px-5 pb-4 ${tweet.repostedByName ? "pt-3" : "pt-5"}`}
+          >
             <div className="flex items-start gap-3 min-w-0">
               <Avatar
                 displayName={tweet.authorName}
                 username={tweet.authorUsername}
+                avatarUrl={tweet.authorAvatarUrl}
                 size={34}
               />
               <div className="min-w-0">
@@ -570,9 +606,38 @@ export default function BookmarkCard({
           </div>
 
           {/* Tweet content */}
+          {tweet.isReply && tweet.replyToUsername && (
+            <p className="mx-5 mb-1.5 text-xs text-muted-foreground">
+              Replying to{" "}
+              <span className="text-primary">@{tweet.replyToUsername}</span>
+            </p>
+          )}
+
           <div className="mx-5 px-4 py-3 bg-secondary/60 border-l-2 border-primary/30 rounded-r-lg text-sm text-foreground leading-relaxed">
             {tweet.text}
           </div>
+
+          {tweet.quotedTweet && (
+            <div className="mx-5 mt-2 p-3 border border-border rounded-lg">
+              <div className="flex items-center gap-2 mb-1.5">
+                <Avatar
+                  displayName={tweet.quotedTweet.authorName}
+                  username={tweet.quotedTweet.authorUsername}
+                  avatarUrl={tweet.quotedTweet.authorAvatarUrl}
+                  size={20}
+                />
+                <span className="text-xs font-medium text-foreground">
+                  {tweet.quotedTweet.authorName}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  @{tweet.quotedTweet.authorUsername}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3">
+                {tweet.quotedTweet.text}
+              </p>
+            </div>
+          )}
 
           {/* Metadata */}
           <div className="px-5 pt-3 space-y-2">

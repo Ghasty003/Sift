@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Page } from "../types";
 import {
   BookmarkIcon,
@@ -48,17 +48,46 @@ function StatCard({
   );
 }
 
+function MiniAvatar({
+  displayName,
+  username,
+  avatarUrl,
+}: {
+  displayName: string;
+  username: string;
+  avatarUrl?: string | null;
+}) {
+  const [imgFailed, setImgFailed] = useState(false);
+
+  if (avatarUrl && !imgFailed) {
+    return (
+      <img
+        src={avatarUrl}
+        alt={displayName}
+        onError={() => setImgFailed(true)}
+        className="w-7 h-7 rounded-full object-cover shrink-0 mt-0.5"
+      />
+    );
+  }
+
+  return (
+    <div
+      className="w-7 h-7 rounded-full flex items-center justify-center text-xs text-white font-semibold shrink-0 mt-0.5"
+      style={{ backgroundColor: getAvatarColor(username) }}
+    >
+      {getInitials(displayName)}
+    </div>
+  );
+}
+
 function MiniBookmarkCard({ bookmark }: { bookmark: ApiBookmark }) {
   return (
     <div className="flex gap-3 py-3 border-b border-border last:border-0">
-      <div
-        className="w-7 h-7 rounded-full flex items-center justify-center text-xs text-white font-semibold shrink-0 mt-0.5"
-        style={{
-          backgroundColor: getAvatarColor(bookmark.tweet.authorUsername),
-        }}
-      >
-        {getInitials(bookmark.tweet.authorName)}
-      </div>
+      <MiniAvatar
+        displayName={bookmark.tweet.authorName}
+        username={bookmark.tweet.authorUsername}
+        avatarUrl={bookmark.tweet.authorAvatarUrl}
+      />
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
           <p className="text-xs font-medium text-foreground truncate">
@@ -87,7 +116,6 @@ function MiniBookmarkCard({ bookmark }: { bookmark: ApiBookmark }) {
     </div>
   );
 }
-
 function QuickLink({
   label,
   badge,
