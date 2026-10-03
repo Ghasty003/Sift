@@ -1,3 +1,8 @@
+export interface ApiTweetMedia {
+  type: "IMAGE" | "VIDEO";
+  previewUrl: string;
+}
+
 export interface ApiTweet {
   tweetId: string;
   url: string;
@@ -6,6 +11,7 @@ export interface ApiTweet {
   authorAvatarUrl: string | null;
   text: string;
   createdAt: string;
+  media: ApiTweetMedia[];
   isReply: boolean;
   replyToUsername: string | null;
   repostedByName: string | null;

@@ -97,6 +97,13 @@ function MiniBookmarkCard({ bookmark }: { bookmark: ApiBookmark }) {
             {formatRelative(bookmark.savedAt)}
           </span>
         </div>
+        {bookmark.tweet.isReply && (
+          <p className="text-xs text-muted-foreground mt-1">
+            {bookmark.tweet.replyToUsername
+              ? `Replying to @${bookmark.tweet.replyToUsername}`
+              : "Reply in thread"}
+          </p>
+        )}
         <p className="text-sm text-muted-foreground mt-1 line-clamp-2 leading-relaxed">
           {bookmark.tweet.text}
         </p>

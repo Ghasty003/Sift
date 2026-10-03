@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { ApiBookmark, ApiCollection } from "../types/api";
+import { ApiBookmark, ApiCollection, ApiTweetMedia } from "../types/api";
 import {
   StarIcon,
   EyeIcon,
@@ -78,6 +78,63 @@ function Avatar({
       }}
     >
       {initials}
+    </div>
+  );
+}
+
+function TweetMediaGrid({
+  media,
+  compact = false,
+}: {
+  media: ApiTweetMedia[];
+  compact?: boolean;
+}) {
+  if (media.length === 0) return null;
+
+  const visibleMedia = media.slice(0, 4);
+  const single = visibleMedia.length === 1;
+
+  return (
+    <div
+      className={`${single ? "grid-cols-1" : "grid-cols-2"} grid gap-1 overflow-hidden rounded-lg border border-border bg-muted`}
+    >
+      {visibleMedia.map((item, index) => (
+        <div
+          key={`${item.type}-${item.previewUrl}-${index}`}
+          className={`relative overflow-hidden bg-secondary ${
+            single
+              ? compact
+                ? "h-32"
+                : "max-h-96 aspect-video"
+              : compact
+                ? "h-24"
+                : "h-44"
+          }`}
+        >
+          <img
+            src={item.previewUrl}
+            alt={item.type === "VIDEO" ? "Video preview" : "Post media"}
+            loading="lazy"
+            className="h-full w-full object-cover"
+          />
+          {item.type === "VIDEO" && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/10">
+              <span className="flex h-11 w-11 items-center justify-center rounded-full bg-black/70 text-white shadow-lg backdrop-blur-sm">
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                  aria-hidden="true"
+                  className="ml-0.5"
+                >
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+              </span>
+            </div>
+          )}
+        </div>
+      ))}
     </div>
   );
 }
@@ -606,16 +663,30 @@ export default function BookmarkCard({
           </div>
 
           {/* Tweet content */}
-          {tweet.isReply && tweet.replyToUsername && (
+          {tweet.isReply && (
             <p className="mx-5 mb-1.5 text-xs text-muted-foreground">
-              Replying to{" "}
-              <span className="text-primary">@{tweet.replyToUsername}</span>
+              {tweet.replyToUsername ? (
+                <>
+                  Replying to{" "}
+                  <span className="text-primary">
+                    @{tweet.replyToUsername}
+                  </span>
+                </>
+              ) : (
+                "Reply in thread"
+              )}
             </p>
           )}
 
           <div className="mx-5 px-4 py-3 bg-secondary/60 border-l-2 border-primary/30 rounded-r-lg text-sm text-foreground leading-relaxed">
             {tweet.text}
           </div>
+
+          {(tweet.media?.length ?? 0) > 0 && (
+            <div className="mx-5 mt-2">
+              <TweetMediaGrid media={tweet.media ?? []} />
+            </div>
+          )}
 
           {tweet.quotedTweet && (
             <div className="mx-5 mt-2 p-3 border border-border rounded-lg">
@@ -636,6 +707,14 @@ export default function BookmarkCard({
               <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3">
                 {tweet.quotedTweet.text}
               </p>
+              {(tweet.quotedTweet.media?.length ?? 0) > 0 && (
+                <div className="mt-2">
+                  <TweetMediaGrid
+                    media={tweet.quotedTweet.media ?? []}
+                    compact
+                  />
+                </div>
+              )}
             </div>
           )}
 
