@@ -5,6 +5,7 @@ import { useInboxBookmarksList } from "../hooks/useBookmarks";
 import InfiniteBookmarkList from "../components/InfiniteBookmarkList";
 import BulkActionBar from "../components/BulkActionBar";
 import SiftLoader from "../components/SiftLoader";
+import { useDebouncedValue } from "../hooks/useDebouncedValue";
 
 interface InboxProps {
   collections: ApiCollection[];
@@ -15,21 +16,12 @@ export default function Inbox({ collections }: InboxProps) {
   const [sort, setSort] = useState<"newest" | "oldest">("newest");
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const debouncedSearch = useDebouncedValue(search.trim(), 250);
 
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
-    useInboxBookmarksList(sort);
+    useInboxBookmarksList(sort, debouncedSearch || undefined);
 
   const allBookmarks = data?.pages.flatMap((p) => p.items) ?? [];
-  const filtered = search
-    ? allBookmarks.filter(
-        (b) =>
-          b.tweet.text.toLowerCase().includes(search.toLowerCase()) ||
-          b.tweet.authorName.toLowerCase().includes(search.toLowerCase()) ||
-          b.tweet.authorUsername.toLowerCase().includes(search.toLowerCase()),
-      )
-    : null;
-
-  const visibleBookmarks = filtered ?? allBookmarks;
   const totalCount = allBookmarks.length;
 
   function toggleSelectMode() {
@@ -88,7 +80,7 @@ export default function Inbox({ collections }: InboxProps) {
 
       {isLoading ? (
         <SiftLoader label="Loading your inbox…" />
-      ) : filtered !== null && filtered.length === 0 ? (
+      ) : debouncedSearch && allBookmarks.length === 0 ? (
         <div className="text-center py-16">
           <p className="text-sm text-muted-foreground">
             No results for &ldquo;{search}&rdquo;
@@ -96,18 +88,9 @@ export default function Inbox({ collections }: InboxProps) {
         </div>
       ) : (
         <InfiniteBookmarkList
-          data={
-            filtered !== null
-              ? {
-                  pages: [
-                    { items: filtered, nextCursor: null, hasMore: false },
-                  ],
-                  pageParams: [undefined],
-                }
-              : data
-          }
+          data={data}
           collections={collections}
-          hasNextPage={filtered === null && hasNextPage}
+          hasNextPage={hasNextPage}
           isFetchingNextPage={isFetchingNextPage}
           isLoading={false}
           fetchNextPage={fetchNextPage}

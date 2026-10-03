@@ -1,5 +1,8 @@
 import { useState } from "react";
-import { useCreateApiToken } from "../hooks/useApiTokens";
+import {
+  useCreateApiToken,
+  useRevokeApiToken,
+} from "../hooks/useApiTokens";
 
 // postMessage target origin is always window.location.origin — the bridge
 // content script in the extension only listens on the page's own origin, so
@@ -29,21 +32,37 @@ function getDefaultDeviceName(): string {
 
 export default function ConnectExtension() {
   const createToken = useCreateApiToken();
+  const revokeToken = useRevokeApiToken();
   const [done, setDone] = useState(false);
   const [deviceName, setDeviceName] = useState(getDefaultDeviceName);
+  const [isHandingOff, setIsHandingOff] = useState(false);
+  const [connectionError, setConnectionError] = useState("");
 
   function handleApprove() {
     const name = deviceName.trim() || getDefaultDeviceName();
+    setConnectionError("");
 
     createToken.mutate(
       { type: "EXTENSION", name },
       {
-        onSuccess: (data) => {
-          window.postMessage(
-            { type: "SIFT_EXTENSION_TOKEN", token: data.token },
-            window.location.origin,
-          );
-          setDone(true);
+        onSuccess: async (data) => {
+          setIsHandingOff(true);
+          try {
+            await handTokenToExtension(data.token);
+            setDone(true);
+          } catch (error) {
+            const tokenId = data.token.split("_")[1];
+            if (tokenId) {
+              await revokeToken.mutateAsync(tokenId).catch(() => undefined);
+            }
+            setConnectionError(
+              error instanceof Error
+                ? error.message
+                : "The extension could not be connected.",
+            );
+          } finally {
+            setIsHandingOff(false);
+          }
         },
       },
     );
@@ -94,14 +113,16 @@ export default function ConnectExtension() {
 
             <button
               onClick={handleApprove}
-              disabled={createToken.isPending}
+              disabled={createToken.isPending || isHandingOff}
               className="w-full py-2.5 bg-primary text-primary-foreground rounded-lg text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-60"
             >
-              {createToken.isPending ? "Connecting…" : "Approve connection"}
+              {createToken.isPending || isHandingOff
+                ? "Connecting…"
+                : "Approve connection"}
             </button>
-            {createToken.isError && (
+            {(createToken.isError || connectionError) && (
               <p className="text-xs text-red-600 mt-3">
-                Something went wrong. Please try again.
+                {connectionError || "Something went wrong. Please try again."}
               </p>
             )}
           </>
@@ -118,4 +139,48 @@ export default function ConnectExtension() {
       </div>
     </div>
   );
+}
+
+function handTokenToExtension(token: string): Promise<void> {
+  const requestId = crypto.randomUUID();
+
+  return new Promise((resolve, reject) => {
+    const timeout = window.setTimeout(() => {
+      cleanup();
+      reject(
+        new Error(
+          "Sift could not find the extension. Install or reload it, then try again.",
+        ),
+      );
+    }, 6_000);
+
+    function cleanup() {
+      window.clearTimeout(timeout);
+      window.removeEventListener("message", handleResult);
+    }
+
+    function handleResult(event: MessageEvent) {
+      if (event.source !== window) return;
+      if (event.origin !== window.location.origin) return;
+      if (event.data?.type !== "SIFT_EXTENSION_TOKEN_RESULT") return;
+      if (event.data.requestId !== requestId) return;
+
+      cleanup();
+      if (event.data.success === true) {
+        resolve();
+      } else {
+        reject(
+          new Error(
+            "The extension reached Sift, but the connection could not be verified.",
+          ),
+        );
+      }
+    }
+
+    window.addEventListener("message", handleResult);
+    window.postMessage(
+      { type: "SIFT_EXTENSION_TOKEN", requestId, token },
+      window.location.origin,
+    );
+  });
 }

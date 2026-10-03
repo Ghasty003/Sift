@@ -1,8 +1,17 @@
 import { useAuthStore } from "@/store/authStore";
 import axios from "axios";
 
-const baseURL =
-  import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080/api/v1";
+const configuredBaseURL = import.meta.env.VITE_API_BASE_URL as
+  | string
+  | undefined;
+
+if (import.meta.env.PROD && !configuredBaseURL) {
+  throw new Error(
+    "VITE_API_BASE_URL is required for production builds; refusing to use localhost",
+  );
+}
+
+const baseURL = configuredBaseURL ?? "http://localhost:8080/api/v1";
 
 export const apiClient = axios.create({ baseURL, withCredentials: true });
 

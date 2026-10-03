@@ -7,6 +7,7 @@ import {
 } from "../hooks/useBookmarks";
 import InfiniteBookmarkList from "../components/InfiniteBookmarkList";
 import SiftLoader from "../components/SiftLoader";
+import { useDebouncedValue } from "../hooks/useDebouncedValue";
 
 interface CollectionDetailProps {
   collection:
@@ -23,22 +24,20 @@ export default function CollectionDetail({
 }: CollectionDetailProps) {
   const [search, setSearch] = useState("");
   const isInbox = collection.id === "inbox";
+  const debouncedSearch = useDebouncedValue(search.trim(), 250);
 
-  const inboxQuery = useInboxBookmarksList();
+  const inboxQuery = useInboxBookmarksList(
+    "newest",
+    debouncedSearch || undefined,
+  );
   const namedQuery = useCollectionBookmarksList(
     isInbox ? undefined : collection.id,
+    debouncedSearch || undefined,
   );
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
     isInbox ? inboxQuery : namedQuery;
 
   const allBookmarks = data?.pages.flatMap((p) => p.items) ?? [];
-  const filtered = search
-    ? allBookmarks.filter(
-        (b) =>
-          b.tweet.text.toLowerCase().includes(search.toLowerCase()) ||
-          b.tweet.authorName.toLowerCase().includes(search.toLowerCase()),
-      )
-    : null;
 
   const bookmarkCount =
     "bookmarkCount" in collection ? collection.bookmarkCount : undefined;
@@ -96,7 +95,7 @@ export default function CollectionDetail({
 
       {isLoading ? (
         <SiftLoader label="Loading this collection…" />
-      ) : filtered !== null && filtered.length === 0 ? (
+      ) : debouncedSearch && allBookmarks.length === 0 ? (
         <div className="text-center py-16">
           <FolderIcon
             size={24}
@@ -108,18 +107,9 @@ export default function CollectionDetail({
         </div>
       ) : (
         <InfiniteBookmarkList
-          data={
-            filtered !== null
-              ? {
-                  pages: [
-                    { items: filtered, nextCursor: null, hasMore: false },
-                  ],
-                  pageParams: [undefined],
-                }
-              : data
-          }
+          data={data}
           collections={allCollections}
-          hasNextPage={filtered === null && hasNextPage}
+          hasNextPage={hasNextPage}
           isFetchingNextPage={isFetchingNextPage}
           isLoading={false}
           fetchNextPage={fetchNextPage}

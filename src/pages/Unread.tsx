@@ -4,6 +4,7 @@ import { EyeOffIcon, CheckCircleIcon } from "../icons";
 import { useMarkAllRead, useUnreadBookmarksList } from "../hooks/useBookmarks";
 import InfiniteBookmarkList from "../components/InfiniteBookmarkList";
 import SiftLoader from "../components/SiftLoader";
+import { useDebouncedValue } from "../hooks/useDebouncedValue";
 
 interface UnreadProps {
   collections: ApiCollection[];
@@ -11,20 +12,13 @@ interface UnreadProps {
 
 export default function Unread({ collections }: UnreadProps) {
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search.trim(), 250);
   const markAllRead = useMarkAllRead();
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
-    useUnreadBookmarksList();
+    useUnreadBookmarksList(debouncedSearch || undefined);
 
   const allBookmarks = data?.pages.flatMap((p) => p.items) ?? [];
-  const filtered = search
-    ? allBookmarks.filter(
-        (b) =>
-          b.tweet.text.toLowerCase().includes(search.toLowerCase()) ||
-          b.tweet.authorName.toLowerCase().includes(search.toLowerCase()),
-      )
-    : null;
-
-  const visibleCount = (filtered ?? allBookmarks).length;
+  const visibleCount = allBookmarks.length;
 
   return (
     <div className="p-6 lg:p-8 max-w-3xl mx-auto">
@@ -68,7 +62,7 @@ export default function Unread({ collections }: UnreadProps) {
 
       {isLoading ? (
         <SiftLoader label="Loading your unread bookmarks…" />
-      ) : filtered !== null && filtered.length === 0 ? (
+      ) : debouncedSearch && allBookmarks.length === 0 ? (
         <div className="text-center py-16">
           <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center mx-auto mb-4">
             <EyeOffIcon size={22} className="text-muted-foreground" />
@@ -82,18 +76,9 @@ export default function Unread({ collections }: UnreadProps) {
         </div>
       ) : (
         <InfiniteBookmarkList
-          data={
-            filtered !== null
-              ? {
-                  pages: [
-                    { items: filtered, nextCursor: null, hasMore: false },
-                  ],
-                  pageParams: [undefined],
-                }
-              : data
-          }
+          data={data}
           collections={collections}
-          hasNextPage={filtered === null && hasNextPage}
+          hasNextPage={hasNextPage}
           isFetchingNextPage={isFetchingNextPage}
           isLoading={false}
           fetchNextPage={fetchNextPage}

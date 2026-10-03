@@ -357,11 +357,19 @@ function MoveMenu({
         Move to
       </p>
       <button
-        disabled
-        title="Not supported yet — removing a bookmark from a collection currently requires deleting the whole collection"
-        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left text-muted-foreground/50 cursor-not-allowed"
+        onClick={() => onMove("inbox")}
+        disabled={moving || currentCollectionId === null}
+        className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-muted transition-colors disabled:cursor-default ${
+          currentCollectionId === null
+            ? "text-primary font-medium"
+            : "text-foreground"
+        }`}
       >
-        <span className="w-3.25" />
+        {currentCollectionId === null ? (
+          <CheckIcon size={13} />
+        ) : (
+          <span className="w-3.25" />
+        )}
         Inbox
       </button>
       {collections.map((c) => (

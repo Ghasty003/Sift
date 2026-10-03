@@ -4,6 +4,7 @@ import { StarIcon } from "../icons";
 import { useFavoriteBookmarksList } from "../hooks/useBookmarks";
 import InfiniteBookmarkList from "../components/InfiniteBookmarkList";
 import SiftLoader from "../components/SiftLoader";
+import { useDebouncedValue } from "../hooks/useDebouncedValue";
 
 interface FavoritesProps {
   collections: ApiCollection[];
@@ -11,17 +12,11 @@ interface FavoritesProps {
 
 export default function Favorites({ collections }: FavoritesProps) {
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search.trim(), 250);
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
-    useFavoriteBookmarksList();
+    useFavoriteBookmarksList(debouncedSearch || undefined);
 
   const allBookmarks = data?.pages.flatMap((p) => p.items) ?? [];
-  const filtered = search
-    ? allBookmarks.filter(
-        (b) =>
-          b.tweet.text.toLowerCase().includes(search.toLowerCase()) ||
-          b.tweet.authorName.toLowerCase().includes(search.toLowerCase()),
-      )
-    : null;
 
   return (
     <div className="p-6 lg:p-8 max-w-3xl mx-auto">
@@ -47,7 +42,7 @@ export default function Favorites({ collections }: FavoritesProps) {
 
       {isLoading ? (
         <SiftLoader label="Loading your favorites…" />
-      ) : filtered !== null && filtered.length === 0 ? (
+      ) : debouncedSearch && allBookmarks.length === 0 ? (
         <div className="text-center py-16">
           <div className="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center mx-auto mb-4">
             <StarIcon size={22} className="text-amber-400" filled />
@@ -61,18 +56,9 @@ export default function Favorites({ collections }: FavoritesProps) {
         </div>
       ) : (
         <InfiniteBookmarkList
-          data={
-            filtered !== null
-              ? {
-                  pages: [
-                    { items: filtered, nextCursor: null, hasMore: false },
-                  ],
-                  pageParams: [undefined],
-                }
-              : data
-          }
+          data={data}
           collections={collections}
-          hasNextPage={filtered === null && hasNextPage}
+          hasNextPage={hasNextPage}
           isFetchingNextPage={isFetchingNextPage}
           isLoading={false}
           fetchNextPage={fetchNextPage}

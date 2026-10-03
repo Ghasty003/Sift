@@ -40,20 +40,26 @@ export function useAllBookmarksList(
   return useBookmarkList(filters);
 }
 
-export function useInboxBookmarksList(sort: "newest" | "oldest" = "newest") {
-  return useBookmarkList({ collectionId: "inbox", sort });
+export function useInboxBookmarksList(
+  sort: "newest" | "oldest" = "newest",
+  search?: string,
+) {
+  return useBookmarkList({ collectionId: "inbox", sort, search });
 }
 
-export function useFavoriteBookmarksList() {
-  return useBookmarkList({ favoriteOnly: true });
+export function useFavoriteBookmarksList(search?: string) {
+  return useBookmarkList({ favoriteOnly: true, search });
 }
 
-export function useUnreadBookmarksList() {
-  return useBookmarkList({ read: false });
+export function useUnreadBookmarksList(search?: string) {
+  return useBookmarkList({ read: false, search });
 }
 
-export function useCollectionBookmarksList(collectionId: string | undefined) {
-  return useBookmarkList({ collectionId }, Boolean(collectionId));
+export function useCollectionBookmarksList(
+  collectionId: string | undefined,
+  search?: string,
+) {
+  return useBookmarkList({ collectionId, search }, Boolean(collectionId));
 }
 
 function useInvalidateAllBookmarkLists() {
